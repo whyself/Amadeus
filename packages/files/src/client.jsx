@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { observeNativeFileActions } from './native-tree.mjs';
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -124,16 +124,31 @@ export function apply(ctx) {
   setAmadeusLocale(ctx.locale);
   ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles + themeStyles; document.head.append(style); return () => style.remove(); });
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => {
-    let entry, Native, Wrapped;
+    const wrapped = new Map(), listeners = new Set();
+    let enabled = true;
+    const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
     const install = () => {
-      if (entry) return;
-      const candidate = ctx.slots.entries('sidebar.right.pane.tab').find(row => row.options.key === '@deepseek-ai/dsh-client-ui-sidebar-files');
-      if (!candidate) return;
-      entry = candidate; Native = candidate.component;
-      Wrapped = props => <NativeFiles {...props} Native={Native} editorOpen={(sessionId, address) => ctx.sidebarRight.openTabIn(sessionId, 'amadeus-code-server', { params: { address } })} />;
-      candidate.component = Wrapped;
+      const candidates = ctx.slots.entries('sidebar.right.pane.tab').filter(row => row.options.key === '@deepseek-ai/dsh-client-ui-sidebar-files');
+      for (const [entry, { Native, Wrapped }] of wrapped) if (!candidates.includes(entry)) {
+        if (entry.component === Wrapped) entry.component = Native;
+        wrapped.delete(entry);
+      }
+      for (const entry of candidates) {
+        if (wrapped.has(entry)) continue;
+        const Native = entry.component;
+        function Wrapped(props) {
+          const active = useSyncExternalStore(subscribe, () => enabled);
+          return active ? <NativeFiles {...props} Native={Native} editorOpen={(sessionId, address) => ctx.sidebarRight.openTabIn(sessionId, 'amadeus-code-server', { params: { address } })} /> : <Native {...props} />;
+        }
+        entry.component = Wrapped; wrapped.set(entry, { Native, Wrapped });
+      }
     };
     install(); const unsubscribe = ctx.slots.subscribe('sidebar.right.pane.tab', install);
-    return () => { unsubscribe(); if (entry?.component === Wrapped) entry.component = Native; };
+    return () => {
+      unsubscribe(); enabled = false;
+      for (const listener of listeners) listener();
+      for (const [entry, { Native, Wrapped }] of wrapped) if (entry.component === Wrapped) entry.component = Native;
+      wrapped.clear();
+    };
   }));
 }

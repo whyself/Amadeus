@@ -24,7 +24,7 @@ jobs:
       - run: npm ci
       - run: npm test && npm run build
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:files-browser && npm run test:editor-browser && npm run test:browser-compat
+      - run: npm run test:files-browser && node tests/native-tree-browser.mjs && npm run test:editor-browser && npm run test:browser-compat
       - run: docker build --progress=plain -t "$AMADEUS_TEST_IMAGE" .
       - run: npm run test:editor-live
       - run: node tests/deployment-browser.mjs
@@ -35,5 +35,8 @@ jobs:
         if: always()
         with:
           name: runtime-evidence
-          path: test-results/
+          path: |
+            test-results/**/*.png
+            test-results/**/*.log
+            test-results/**/browser-errors.json
           retention-days: 7

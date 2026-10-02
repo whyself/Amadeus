@@ -37,7 +37,7 @@ try {
     try { return (await fetch(origin, { signal: AbortSignal.timeout(1000) })).status; } catch { return 0; }
   }, { timeout: 120000 }).toBe(401);
   browser = await chromium.launch({ channel: process.env.TEST_BROWSER_CHANNEL || 'msedge', headless: true });
-  const context = await browser.newContext({ httpCredentials: { username, password }, acceptDownloads: true, viewport: { width: 1400, height: 1000 } });
+  const context = await browser.newContext({ locale: 'zh-CN', httpCredentials: { username, password }, acceptDownloads: true, viewport: { width: 1400, height: 1000 } });
   page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -96,6 +96,18 @@ try {
   await expect(tree.getByRole('button', { name: 'uploaded.txt', exact: true })).toHaveCount(0);
   await assert.rejects(readFile(path.join(workspace, 'uploaded.txt')), { code: 'ENOENT' });
   console.log('PASS: ZIP download, canceled deletion and confirmed deletion refresh the upstream tree');
+
+  if (process.platform !== 'win32') {
+    await mkdir(path.join(workspace, 'a'));
+    await writeFile(path.join(workspace, 'a/b.txt'), 'nested survivor');
+    await writeFile(path.join(workspace, 'a\\b.txt'), 'literal backslash');
+    await page.getByRole('button', { name: '删除 a\\b.txt', exact: true }).click();
+    await page.locator('.amadeus-confirm-delete').click();
+    await expect(tree.getByRole('button', { name: 'a\\b.txt', exact: true })).toHaveCount(0);
+    await assert.rejects(readFile(path.join(workspace, 'a\\b.txt')), { code: 'ENOENT' });
+    assert.equal(await readFile(path.join(workspace, 'a/b.txt'), 'utf8'), 'nested survivor');
+    console.log('PASS: POSIX literal backslash deletion does not alias a nested file');
+  }
 
   await tree.getByRole('button', { name: 'audit.md', exact: true }).click();
   const body = page.locator('[data-amadeus-path="audit.md"]').first();

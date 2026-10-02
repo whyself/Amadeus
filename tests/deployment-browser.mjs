@@ -45,7 +45,7 @@ try {
   await docker(['exec', name, 'xelatex', '-interaction=nonstopmode', '-halt-on-error', '-output-directory=/workspace', '/workspace/paper.tex']);
   console.log('PASS: container authentication, public PWA manifest and actual XeLaTeX compilation');
   browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' });
-  const context = await browser.newContext({ httpCredentials: { username, password }, viewport: { width: 1500, height: 1000 } });
+  const context = await browser.newContext({ locale: 'zh-CN', httpCredentials: { username, password }, viewport: { width: 1500, height: 1000 } });
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -82,7 +82,7 @@ try {
   });
   const light = await selectionColors(); assert.equal(light.actual, light.expected);
   await page.emulateMedia({ colorScheme: 'dark' });
-  await expect.poll(async () => (await selectionColors()).actual).not.toBe(light.actual);
+  await expect.poll(() => page.locator('body').evaluate(body => body.hasAttribute('data-ds-dark-theme'))).toBe(true);
   const dark = await selectionColors(); assert.equal(dark.actual, dark.expected);
   await page.screenshot({ path: path.join(directory, 'native-pdf-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
