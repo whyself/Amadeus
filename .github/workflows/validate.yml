@@ -1,0 +1,39 @@
+name: Validate Amadeus
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TEST_BROWSER_CHANNEL: chromium
+      AMADEUS_TEST_IMAGE: amadeus:validation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test && npm run build
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:files-browser && npm run test:editor-browser && npm run test:browser-compat
+      - run: docker build --progress=plain -t "$AMADEUS_TEST_IMAGE" .
+      - run: npm run test:editor-live
+      - run: node tests/deployment-browser.mjs
+      - run: npm run pack:plugins
+      - run: sha256sum --check SHA256SUMS
+        working-directory: .release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-evidence
+          path: test-results/
+          retention-days: 7

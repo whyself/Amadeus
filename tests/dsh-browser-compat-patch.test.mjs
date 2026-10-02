@@ -34,6 +34,17 @@ test('patch accepts V8 and WebKit formatting while rejecting non-native construc
   assert.equal(runInNewContext(patched + '\nhasIntrinsicConstructor(Object.prototype, "Array")'), false);
 });
 
+test('DSH 0.2 native comparison is preserved and remains strict under WebKit formatting', () => {
+  const modern = original.replace('=== `function ${name}() { [native code] }`', '=== Function.prototype.toString.call(name === "Array" ? Array : Object)');
+  assert.notEqual(modern, original);
+  assert.equal(patchIntrinsicConstructor(modern), modern);
+  const simulateJsc = `const nativeSource = Function.prototype.toString;
+    Function.prototype.toString = function() { return nativeSource.call(this).replace(' { [native code] }', ' {\\n    [native code]\\n}'); };`;
+  for (const name of ['Object', 'Array']) assert.equal(runInNewContext(simulateJsc + modern + `\nhasIntrinsicConstructor(${name}.prototype, "${name}")`), true);
+  assert.equal(runInNewContext(modern + '\nfunction FakeObject() {}\nObject.defineProperty(FakeObject, "name", { value: "Object" });\nhasIntrinsicConstructor(FakeObject.prototype, "Object")'), false);
+  assert.throws(() => patchIntrinsicConstructor(modern.replace('Array : Object', 'Object : Array')), /Unsupported/);
+});
+
 test('startup patch validates syntax and leaves host and embedded sources unchanged', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'amadeus-browser-patch-'));
   t.after(() => rm(root, { recursive: true, force: true }));

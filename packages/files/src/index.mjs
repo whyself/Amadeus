@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readdir, lstat, mkdir } from 'node:fs/promises';
+import { lstat, mkdir } from 'node:fs/promises';
 import { sessionRoot, resolveWithin, HttpError, json, routeErrors } from './workspace.mjs';
 import { upload, download } from './transfer.mjs';
 import { inspectRemoval, removeConfirmed } from './remove.mjs';
@@ -32,12 +32,6 @@ export async function apply(ctx, config = {}) {
       await mkdir(target).catch(error => { if (error.code !== 'EEXIST') throw error; });
       if (!(await lstat(target)).isDirectory()) throw new HttpError(409, 'A file occupies this directory path');
       return json(res, 201, { path: input });
-    }
-    if (req.method === 'GET' && url.pathname === '/amadeus/files/list') {
-      const target = await resolveWithin(root, input);
-      const entries = await readdir(target, { withFileTypes: true });
-      if (entries.length > 20000) throw new HttpError(413, 'This directory exceeds the 20,000-entry listing limit');
-      return json(res, 200, { root, path: path.relative(root, target).replaceAll('\\', '/'), entries: entries.filter(e => !e.name.startsWith('.amadeus-upload-')).map(e => ({ name: e.name, type: e.isSymbolicLink() ? 'symlink' : e.isDirectory() ? 'directory' : e.isFile() ? 'file' : 'other' })).sort((a, b) => (b.type === 'directory') - (a.type === 'directory') || a.name.localeCompare(b.name)) });
     }
     throw new HttpError(404, 'Route not found');
   }) }), 'amadeus file transfers');

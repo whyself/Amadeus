@@ -54,29 +54,6 @@ function replaceConversationHeadline() {
   observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   return () => observer.disconnect();
 }
-function delayQueueDock(ctx) {
-  let entry, Native, Delayed;
-  const install = () => {
-    if (entry) return;
-    const candidate = ctx.slots.entries('conversation.input.dock').find(row => row.options.id === 'queue');
-    if (!candidate) return;
-    entry = candidate; Native = candidate.component;
-    Delayed = props => {
-      const active = props.useSession(state => state.queue.some(item => item.placement === 'queued') || state.pendingSubmissions.some(item => item.placement === 'queued'));
-      const [visible, setVisible] = useState(false);
-      useEffect(() => {
-        if (!active) { setVisible(false); return; }
-        const timer = setTimeout(() => setVisible(true), 180);
-        return () => clearTimeout(timer);
-      }, [active]);
-      return active && visible ? <Native {...props} /> : null;
-    };
-    candidate.component = Delayed;
-  };
-  install();
-  const unsubscribe = ctx.slots.subscribe('conversation.input.dock', install);
-  return () => { unsubscribe(); if (entry?.component === Delayed) entry.component = Native; };
-}
 function suppressDesktopUnavailable(ctx) {
   let entry, Native, SidebarOnly;
   const install = () => {
@@ -453,9 +430,8 @@ export function apply(ctx) {
   ctx.effect(() => ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({ name: 'sidebar.footer.action', id: 'amadeus-conversation-collapse', order: 10 }, props => <ConversationCollapse {...props} sidebarRight={ctx.sidebarRight} />)));
   ctx.effect(() => ctx.slots.inject('conversation.hero.brand.mark', () => ctx.slots.register({ name: 'conversation.hero.brand.mark' }, AmadeusBrandMark)));
   ctx.effect(() => replaceConversationHeadline());
-  ctx.effect(() => ctx.slots.inject('conversation.input.dock', () => delayQueueDock(ctx)));
   ctx.effect(() => ctx.slots.inject('conversation.chat.turnTail', () => suppressDesktopUnavailable(ctx)));
-  ctx.effect(() => { const style = document.createElement('style'); style.textContent = `${styles + themeStyles}\n/* Native sidebar PDF/Office text layer: the theme's hover-accent selection is nearly invisible; the lazy PDF chunk also inserts its CSS after ours, so win the tie with !important. */\n[data-pdf-text] ::selection{background:rgba(68,118,254,.45)!important}`; document.head.append(style); return () => style.remove(); });
+  ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles + themeStyles; document.head.append(style); return () => style.remove(); });
   // Add selection provenance around native document bodies (text, PDF, Office)
   // without replacing their rendering, and honor annotation page jumps.
   ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document', () => {

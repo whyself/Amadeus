@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, Modal, FileTypeIcon } from '@deepseek-ai/dsh-client-ui-primitives';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { observeNativeFileActions } from './native-tree.mjs';
+import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
 import styles from '../../../ui/amadeus.css';
 import themeStyles from '../../../ui/dsh-theme.css';
 import { editableResource } from './editable-resource.mjs';
 import { setAmadeusLocale, useAmadeusLocale, tr } from '../../reader/src/locale.mjs';
-export const inject = ['slots', 'sidebarRightTabs', 'sidebarRight', 'locale'];
+export const inject = ['slots', 'sidebarRight', 'locale'];
 export function fileUrl(action, session, path, extra = {}) {
   const query = new URLSearchParams({ session, path, ...extra });
   const origin = typeof location !== 'undefined' ? location.origin : '';
@@ -19,45 +21,22 @@ async function request(url, init) {
 function Arrow({ direction }) { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={direction === 'up' ? 'M12 16V3m-5 5 5-5 5 5' : 'M12 3v13m-5-5 5 5 5-5'} /><path d="M4 16v5h16v-5" /></svg>; }
 function Trash() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" /></svg>; }
 function Edit() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m14 5 5 5M3 21l5.5-1.2L20 8.3a2.8 2.8 0 0 0-4-4L4.5 15.8 3 21Z" /></svg>; }
-function FilesTitle() { useAmadeusLocale(); return tr('项目文件', 'Project files'); }
-function Files({ sessionId, useTabInfo, editorOpen }) {
+function NativeFiles({ Native, editorOpen, ...props }) {
+  const host = useRef();
+  const [targets, setTargets] = useState([]);
+  useLayoutEffect(() => observeNativeFileActions(host.current, setTargets), [props.sessionId]);
+  return <section ref={host} className="amadeus-files amadeus-native-files"><Native {...props} /><FileOperations {...props} targets={targets} editorOpen={editorOpen} /></section>;
+}
+function FileOperations({ sessionId, useTabInfo, targets, refresh: reload, editorOpen }) {
   useAmadeusLocale();
-  const tab = useTabInfo();
-  const [levels, setLevels] = useState({}), [expanded, setExpanded] = useState(new Set(['']));
-  const [root, setRoot] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState('');
+  const { tab } = useTabInfo();
+  const [error, setError] = useState(''), [busy, setBusy] = useState('');
   const [uploadTo, setUploadTo] = useState(null), [conflict, setConflict] = useState(null);
   const [removal, setRemoval] = useState(null), [removing, setRemoving] = useState(false), [checkingRemoval, setCheckingRemoval] = useState(null), [removeError, setRemoveError] = useState('');
-  const panel = useRef(), scrollArea = useRef(), expandedRef = useRef(expanded), polling = useRef(false);
   const files = useRef(), folder = useRef(), destination = useRef(''), controller = useRef(), conflictResolver = useRef();
   const generation = useRef(0);
-  expandedRef.current = expanded;
-  async function load(path) {
-    const current = generation.current;
-    try { const data = await request(fileUrl('list', sessionId, path)); if (current !== generation.current) return; setRoot(data.root); setLevels(prev => ({ ...prev, [path]: data.entries })); }
-    catch (error) { if (current === generation.current) setError(error.message); }
-  }
-  useEffect(() => { generation.current++; setLevels({}); setExpanded(new Set([''])); setRemoval(null); setRemoving(false); setCheckingRemoval(null); setRemoveError(''); load(''); return () => { generation.current++; controller.current?.abort(); conflictResolver.current?.('cancel'); }; }, [sessionId]);
-  useEffect(() => {
-    if (!tab.tab.visible) return;
-    let stopped = false;
-    const check = async () => {
-      if (stopped || polling.current || document.visibilityState !== 'visible') return;
-      polling.current = true;
-      try { await refresh(true); } finally { polling.current = false; }
-    };
-    void check();
-    const timer = setInterval(check, 2000);
-    document.addEventListener('visibilitychange', check);
-    return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', check); };
-  }, [sessionId, tab.tab.visible]);
-  useEffect(() => {
-    const element = scrollArea.current;
-    const measure = () => panel.current?.style.setProperty('--amadeus-file-scrollbar', `${element.offsetWidth - element.clientWidth}px`);
-    const observer = new ResizeObserver(measure); observer.observe(element); measure();
-    return () => observer.disconnect();
-  }, []);
-  async function refresh(silent = false) { if (!silent) setError(''); for (const path of expandedRef.current) await load(path); }
-  function toggle(path) { setExpanded(prev => { const next = new Set(prev); next.has(path) ? next.delete(path) : next.add(path); return next; }); if (!levels[path]) load(path); }
+  useEffect(() => { generation.current++; return () => { generation.current++; controller.current?.abort(); conflictResolver.current?.('cancel'); }; }, [sessionId, tab.id]);
+  async function refresh() { reload(tab.id); }
   async function uploadFiles(selected) {
     if (!selected.length) return;
     setError(''); controller.current = new AbortController();
@@ -118,12 +97,7 @@ function Files({ sessionId, useTabInfo, editorOpen }) {
     try {
       await request(fileUrl('remove', target.sessionId, target.path, { version: target.version }), { method: 'DELETE' });
       if (generation.current !== current) return;
-      const keep = path => path !== target.path && !path.startsWith(target.path + '/');
-      const remaining = [...expanded].filter(keep);
-      setExpanded(new Set(remaining));
-      setLevels(previous => Object.fromEntries(Object.entries(previous).filter(([path]) => keep(path))));
-      setRemoval(null); setError('');
-      for (const path of remaining) await load(path);
+      setRemoval(null); setError(''); await refresh();
     } catch (error) { if (generation.current === current) setRemoveError(error.message); }
     finally { if (generation.current === current) setRemoving(false); }
   }
@@ -135,32 +109,31 @@ function Files({ sessionId, useTabInfo, editorOpen }) {
       {path && <button className="amadeus-icon amadeus-file-remove" title={directory ? tr('删除文件夹', 'Delete folder') : tr('删除文件', 'Delete file')} aria-label={`${tr('删除', 'Delete')} ${path}`} disabled={!!busy || removing || checkingRemoval !== null} onClick={() => askRemoval(path)}><Trash /></button>}
     </span>;
   }
-  function tree(path) {
-    return <ul className="amadeus-tree">{(levels[path] || []).map(entry => {
-      const target = [path, entry.name].filter(Boolean).join('/'), dir = entry.type === 'directory', regular = dir || entry.type === 'file';
-      return <li key={target}><div className="amadeus-row">
-        <button className="amadeus-filename" disabled={!regular} aria-expanded={dir ? expanded.has(target) : undefined} title={entry.name} onClick={() => dir ? toggle(target) : tab.tab.actions.openResource(`dsh-resource://file/session/${encodeURIComponent(sessionId)}/${target.split('/').map(encodeURIComponent).join('/')}`)}><FileTypeIcon {...(dir ? { kind: 'folder' } : { path: entry.name })} size={16} /><span>{entry.name}</span></button>
-        {regular && actions(target, dir)}
-      </div>{dir && expanded.has(target) && tree(target)}</li>;
-    })}</ul>;
-  }
-  return <section ref={panel} className="amadeus-files" aria-label={tr('项目文件', 'Project files')}>
-    <header className="amadeus-toolbar"><span className="amadeus-ellipsis" title={root}>{root || tr('项目文件', 'Project files')}</span>{actions('', true)}</header>
-    <input ref={files} type="file" multiple hidden onChange={e => uploadFiles([...e.target.files])} />
-    <input ref={folder} type="file" multiple webkitdirectory="" hidden onChange={e => uploadFiles([...e.target.files])} />
+  return <>
+    {targets.map(target => createPortal(actions(target.path, target.directory), target.host, target.root + '/' + target.path))}
+    <input ref={files} type="file" multiple hidden aria-label="Upload files" onChange={e => uploadFiles([...e.target.files])} />
+    <input ref={folder} type="file" multiple webkitdirectory="" hidden aria-label="Upload folder" onChange={e => uploadFiles([...e.target.files])} />
     {busy && <div className="amadeus-notice" role="status">{tr('正在上传', 'Uploading')} {busy}<button onClick={() => { conflictResolver.current?.('cancel'); controller.current?.abort(); }}>{tr('取消', 'Cancel')}</button></div>}
     {error && <p className="amadeus-error" role="alert">{error}</p>}
-    <div ref={scrollArea} className="amadeus-tree-scroll">{tree('')}{levels['']?.length === 0 && <p className="amadeus-muted">{tr('此目录为空，点击 ↑ 添加资料。', 'This folder is empty. Click ↑ to add files.')}</p>}</div>
     <Modal open={uploadTo !== null} title={tr('上传资料', 'Upload files')} closeLabel={tr('关闭', 'Close')} onClose={() => setUploadTo(null)} className="amadeus-modal"><p className="amadeus-modal-path">{tr('上传到', 'Upload to')} {uploadTo || tr('项目根目录', 'project root')}</p><div className="amadeus-modal-actions"><Button onClick={() => { destination.current = uploadTo; setUploadTo(null); files.current.click(); }}>{tr('上传文件', 'Upload files')}</Button><Button variant="primary" onClick={chooseFolder}>{tr('上传文件夹', 'Upload folder')}</Button></div></Modal>
     <Modal open={conflict !== null} title={tr('文件已存在', 'File already exists')} closeLabel={tr('关闭', 'Close')} onClose={() => conflictResolver.current?.('cancel')} className="amadeus-modal"><p className="amadeus-modal-path">{conflict}</p><p>{tr('替换后将使用本次上传的版本。', 'The uploaded version will replace the existing file.')}</p><div className="amadeus-modal-actions"><Button onClick={() => conflictResolver.current?.('cancel')}>{tr('取消上传', 'Cancel upload')}</Button><Button onClick={() => conflictResolver.current?.('skip')}>{tr('跳过', 'Skip')}</Button><Button variant="primary" onClick={() => conflictResolver.current?.('replace')}>{tr('替换', 'Replace')}</Button></div></Modal>
     <Modal open={removal !== null} title={removal?.directory ? tr('删除文件夹？', 'Delete folder?') : tr('删除文件？', 'Delete file?')} closeLabel={tr('关闭', 'Close')} onClose={() => { if (!removing) setRemoval(null); }} className="amadeus-modal"><p className="amadeus-delete-path">{removal?.path}</p><p>{removal?.directory ? tr('文件夹及其中所有内容将被永久删除，无法撤销。', 'The folder and everything in it will be permanently deleted.') : tr('文件将被永久删除，无法撤销。', 'The file will be permanently deleted.')}</p>{removeError && <p className="amadeus-error" role="alert">{removeError}</p>}<div className="amadeus-modal-actions"><Button disabled={removing} onClick={() => setRemoval(null)}>{tr('取消', 'Cancel')}</Button><Button className="amadeus-confirm-delete" variant="primary" disabled={removing || !!removeError} onClick={confirmRemoval}>{removing ? tr('删除中…', 'Deleting…') : tr('删除', 'Delete')}</Button></div></Modal>
-  </section>;
+  </>;
 }
 export function apply(ctx) {
   setAmadeusLocale(ctx.locale);
-  const id = 'dsh-amadeus-files';
   ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles + themeStyles; document.head.append(style); return () => style.remove(); });
-  ctx.effect(() => ctx.sidebarRightTabs.register({ id, kind: 'files', priority: 'extension', title: () => tr('项目文件', 'Project files'), guide: [{ id: 'workspace', order: 10, title: () => tr('项目文件', 'Project files'), description: () => tr('浏览、上传与下载学习资料', 'Browse, upload, and download files'), icon: ({ size, className }) => <FileTypeIcon kind="folder" size={size} className={className} /> }] }));
-  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({ name: 'sidebar.right.pane.tab', key: id }, props => <Files {...props} editorOpen={(sessionId, address) => ctx.sidebarRight.openTabIn(sessionId, 'amadeus-code-server', { params: { address } })} />)));
-  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: id }, FilesTitle)));
+  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => {
+    let entry, Native, Wrapped;
+    const install = () => {
+      if (entry) return;
+      const candidate = ctx.slots.entries('sidebar.right.pane.tab').find(row => row.options.key === '@deepseek-ai/dsh-client-ui-sidebar-files');
+      if (!candidate) return;
+      entry = candidate; Native = candidate.component;
+      Wrapped = props => <NativeFiles {...props} Native={Native} editorOpen={(sessionId, address) => ctx.sidebarRight.openTabIn(sessionId, 'amadeus-code-server', { params: { address } })} />;
+      candidate.component = Wrapped;
+    };
+    install(); const unsubscribe = ctx.slots.subscribe('sidebar.right.pane.tab', install);
+    return () => { unsubscribe(); if (entry?.component === Wrapped) entry.component = Native; };
+  }));
 }

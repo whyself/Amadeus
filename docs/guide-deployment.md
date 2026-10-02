@@ -25,7 +25,7 @@ flowchart TD
 
 ### 版本说明
 
-最新正式版是 **v1.1.3**。下面默认克隆这个标签，适合正式使用。本次 Safari 兼容、出处链接与编辑器布局等修改尚未发布；合入后要试用它们，可将克隆命令中的 `--branch v1.1.3` 改为 `--branch main`。提交中的未发布改动不会自动进入已有的 v1.1.3 标签。
+最新正式版是 **v1.2.0**。下面默认克隆这个标签，包含 DSH `0.2.0-rc.2` 升级、Safari 兼容、注释出处链接、编辑器工作台恢复和原生文件树整合。DSH 依赖仍是预发布候选版；升级前备份配置、工作区与数据卷。
 
 当前部署固定使用 Node.js **24**、code-server **4.104.2**、LaTeX Workshop **10.9.0**。补丁针对这些版本，请先按文档安装，避免自行换成 code-server 或扩展的最新版本。
 
@@ -50,7 +50,7 @@ docker compose version
 在你希望保存项目的目录执行：
 
 ~~~powershell
-git clone --branch v1.1.3 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
 Set-Location Amadeus
 Copy-Item amadeus.docker.example.yml amadeus.local.yml
 New-Item -ItemType Directory -Force workspace
@@ -119,7 +119,7 @@ npm --version
 ### B2. 构建 Amadeus
 
 ~~~bash
-git clone --branch v1.1.3 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
 cd Amadeus
 npm ci
 npm run build
@@ -287,7 +287,7 @@ sudo docker compose version
 已安装其他 Docker 发行包时，先按官方文档处理包冲突，不要重复安装。后续 `docker compose` 若没有权限请加 `sudo`。确认版本命令可用后：
 
 ~~~bash
-git clone --branch v1.1.3 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
 cd Amadeus
 cp amadeus.docker.example.yml amadeus.local.yml
 mkdir -p workspace
@@ -493,7 +493,7 @@ docker compose start
 
 ~~~bash
 git fetch --tags
-git switch --detach v1.1.3
+git switch --detach v1.2.0
 docker compose up -d --build
 ~~~
 

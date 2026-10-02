@@ -4,10 +4,12 @@ import path from 'node:path';
 
 const ORIGINAL = 'Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`';
 const COMPATIBLE = 'Function.prototype.toString.call(constructor).replace(/\\s+/g, " ") === `function ${name}() { [native code] }`';
-const FUNCTION = /function hasIntrinsicConstructor\(prototype, name\) \{\s*const constructor = Object\.getOwnPropertyDescriptor\(prototype, "constructor"\)\?\.value;\s*if \(typeof constructor !== "function"\) return false;\s*try \{\s*return constructor\.name === name && constructor\.prototype === prototype && Function\.prototype\.toString\.call\(constructor\)(?:\.replace\(\/\\s\+\/g, " "\))? === `function \$\{name\}\(\) \{ \[native code\] \}`;\s*\} catch \{\s*return false;\s*\}\s*\}/g;
+const FUNCTION = /function hasIntrinsicConstructor\(prototype, name\) \{\s*const constructor = Object\.getOwnPropertyDescriptor\(prototype, "constructor"\)\?\.value;\s*if \(typeof constructor !== "function"\) return false;\s*try \{\s*return constructor\.name === name && constructor\.prototype === prototype && (?:Function\.prototype\.toString\.call\(constructor\)(?:\.replace\(\/\\s\+\/g, " "\))? === `function \$\{name\}\(\) \{ \[native code\] \}`|Function\.prototype\.toString\.call\(constructor\) === Function\.prototype\.toString\.call\(name === "Array" \? Array : Object\));\s*\} catch \{\s*return false;\s*\}\s*\}/g;
 
 // Match the complete known validation function, never native-looking tails in
-// arbitrary code or embedded worker strings. Unknown dependency builds fail
+// arbitrary code or embedded worker strings. DSH 0.2 compares against the local
+// native constructor directly and already supports Safari, so leave it intact.
+// Unknown dependency builds fail
 // before writes, rather than silently weakening object validation.
 export function patchIntrinsicConstructor(source) {
   const matches = [...source.matchAll(FUNCTION)];

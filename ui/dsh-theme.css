@@ -92,3 +92,6 @@
 [data-chat-flow-kind="assistant-step"]:not(:has([data-streaming])){content-visibility:auto;contain-intrinsic-block-size:auto 320px}
 @media(prefers-reduced-motion:reduce){.amadeus-conversation-glyph{transition:none}}
 @media(prefers-reduced-motion:reduce){[data-amadeus-chat-managed]{transition:none}}
+/* DSH retains the tree and its scroll state; Amadeus adds only operation buttons. */
+.amadeus-native-files{--amadeus-file-action-size:28px;position:relative}.amadeus-native-files>[data-files-state]{flex:1;min-height:0}.amadeus-native-files [data-amadeus-file-row]{position:relative}.amadeus-native-files [data-amadeus-file-row]>button{box-sizing:border-box;width:calc(100% - 104px)}.amadeus-native-row-actions{position:absolute;top:1px;right:8px}.amadeus-native-root-actions{display:inline-flex;flex:none}.amadeus-native-row-actions .amadeus-file-actions{opacity:.5}.amadeus-native-files [data-amadeus-file-row]:hover>.amadeus-native-row-actions .amadeus-file-actions,.amadeus-native-row-actions:focus-within .amadeus-file-actions{opacity:1}.amadeus-native-files>.amadeus-notice,.amadeus-native-files>.amadeus-error{flex:none}
+@media(pointer:coarse){.amadeus-native-files{--amadeus-file-action-size:32px}.amadeus-native-files [data-amadeus-file-row]>button{width:calc(100% - 116px)}.amadeus-native-row-actions .amadeus-file-actions{opacity:1}}

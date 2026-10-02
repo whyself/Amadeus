@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-export const PWA_VERSION = '1.1.3';
+export const PWA_VERSION = '1.2.0';
 const CACHE_NAME = `amadeus-pwa-${PWA_VERSION}`;
 const iconFiles = Object.freeze({
   192: new URL('../assets/amadeus-icon-192.png', import.meta.url),
