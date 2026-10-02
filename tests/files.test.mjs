@@ -73,6 +73,18 @@ test('deletion preview is read-only and confirmation deletes only the named file
   await assert.rejects(lstat(path.join(root, 'remove.txt')), e => e.code === 'ENOENT');
   assert.equal(await readFile(path.join(root, 'keep.txt'), 'utf8'), 'keep');
 });
+
+test('POSIX literal-backslash confirmation preserves identity beside a nested path', { skip: process.platform === 'win32' }, async t => {
+  const root = await workspace(t);
+  const uploaded = await upload(root, 'a\\b.txt', Readable.from('literal'));
+  assert.equal(uploaded.path, 'a\\b.txt');
+  await upload(root, 'a/b.txt', Readable.from('nested'));
+  const preview = await inspectRemoval(root, 'a\\b.txt');
+  assert.equal(preview.path, 'a\\b.txt');
+  await removeConfirmed(root, preview.path, preview.version);
+  await assert.rejects(readFile(path.join(root, 'a\\b.txt')), { code: 'ENOENT' });
+  assert.equal(await readFile(path.join(root, 'a/b.txt'), 'utf8'), 'nested');
+});
 test('folder deletion rejects stale nested changes and refreshes confirmation', async t => {
   const root = await workspace(t);
   await upload(root, 'folder/nested/a.txt', Readable.from('old'));

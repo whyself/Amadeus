@@ -44,7 +44,7 @@ export async function upload(root, input, stream, { maxBytes = 1024 ** 3, overwr
         catch (error) { if (error.code === 'EEXIST') throw new HttpError(409, 'File already exists'); throw error; }
       }
     });
-    return { path: path.relative(root, target).replaceAll('\\', '/'), bytes };
+    return { path: path.relative(root, target).split(path.sep).join('/'), bytes };
   } finally { await unlink(temp).catch(() => {}); }
 }
 export async function zipDirectory(root, target, { maxEntries = 100000 } = {}) {

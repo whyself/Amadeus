@@ -24,7 +24,7 @@ export async function inspectRemoval(root, input) {
       for (const name of names) pending.push(childWithin(canonicalRoot, path.join(current, name)));
     }
   }
-  return { root: canonicalRoot, target, path: path.relative(canonicalRoot, target).replaceAll('\\', '/'), directory: info.isDirectory(), version: hash.digest('hex') };
+  return { root: canonicalRoot, target, path: path.relative(canonicalRoot, target).split(path.sep).join('/'), directory: info.isDirectory(), version: hash.digest('hex') };
 }
 
 export async function removeConfirmed(root, input, version) {

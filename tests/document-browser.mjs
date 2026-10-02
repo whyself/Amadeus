@@ -9,7 +9,7 @@ const config = yaml.load(await readFile(process.argv[2], 'utf8'));
 const port = Number(process.env.TEST_PORT || config.port || 3080);
 const browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' });
 try {
-  const page = await browser.newPage({ httpCredentials: { username: config.username, password: config.password }, viewport: { width: 1400, height: 1000 } });
+  const page = await browser.newPage({ locale: 'zh-CN', httpCredentials: { username: config.username, password: config.password }, viewport: { width: 1400, height: 1000 } });
   await page.goto(`http://127.0.0.1:${port}`);
   const input = page.locator('[contenteditable=true]');
   await input.click();
@@ -36,7 +36,7 @@ try {
   console.log('PASS: IME first character, continuous composition, Chinese commit, replacement, cancellation, ASCII');
 
   await page.getByRole('button', { name: '打开右侧边栏', exact: true }).click();
-  await page.getByRole('button', { name: '项目文件' }).click();
+  await page.getByRole('button', { name: '工作区文件' }).click();
   for (const name of process.argv[3].split('/')) await page.getByRole('button', { name, exact: true }).click();
   const controls = page.locator('[data-document-zoom-controls]');
   await controls.waitFor();
