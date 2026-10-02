@@ -22,7 +22,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const url = `http://127.0.0.1:${server.address().port}`;
 try {
   for (const engine of ['chromium', 'webkit']) {
-    const browser = await (engine === 'webkit' ? webkit.launch() : chromium.launch({ channel: 'msedge' }));
+    const browser = await (engine === 'webkit' ? webkit.launch() : chromium.launch({ channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' }));
     try {
       const context = await browser.newContext({ hasTouch: engine === 'webkit' });
       const page = await context.newPage();
