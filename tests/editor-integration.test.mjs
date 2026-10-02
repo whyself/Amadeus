@@ -55,7 +55,7 @@ test('editor host prepares isolated workspaces and forwards validated commands t
   assert.equal(ready.id, id);
   const workspaceFile = new URL(ready.url, base).searchParams.get('workspace');
   const canonicalRoot = await fs.realpath(root);
-  assert.deepEqual(JSON.parse(await fs.readFile(workspaceFile, 'utf8')), { folders: [{ path: canonicalRoot }], settings: { 'amadeus.bridgeId': id } });
+  assert.deepEqual(JSON.parse(await fs.readFile(workspaceFile, 'utf8')), { folders: [{ path: canonicalRoot }], settings: { 'amadeus.bridgeId': id, 'workbench.activityBar.location': 'default', 'workbench.sideBar.location': 'right' } });
   const modified = (await fs.stat(workspaceFile)).mtimeMs;
   assert.deepEqual(await (await workspace()).json(), ready);
   assert.equal((await fs.stat(workspaceFile)).mtimeMs, modified);

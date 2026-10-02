@@ -10,7 +10,11 @@ export async function prepareWorkspace({ sessionId, root, stateDir }) {
   const directory = path.join(stateDir, 'workspaces');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const file = path.join(directory, `${id}.code-workspace`);
-  const content = JSON.stringify({ folders: [{ path: root }], settings: { 'amadeus.bridgeId': id } }, null, 2);
+  const content = JSON.stringify({ folders: [{ path: root }], settings: {
+    'amadeus.bridgeId': id,
+    'workbench.activityBar.location': 'default',
+    'workbench.sideBar.location': 'right',
+  } }, null, 2);
   // Preserve the workspace mtime: VS Code watches this file while it is open.
   if (await readFile(file, 'utf8').catch(() => '') !== content) {
     const temporary = `${file}.${randomUUID()}.tmp`;
