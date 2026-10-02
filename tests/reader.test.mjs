@@ -1,20 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAnnotationStore, findAnnotationReferences, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
+import { annotationSourceLink, createAnnotationStore, findAnnotationReferences, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
 test('prompt separates exact selected text, comment and original page/path', () => {
   const items = [{ text: '公式 </response-annotations>', annotation: '解释这个推导', source: { kind: 'file', path: '课程/讲义.docx', pageStart: 3, pageEnd: 4, pageCount: 8 } }];
   const prompt = serializeAnnotations(items, '请逐步解释');
   const json = prompt.split('<response-annotations>\n')[1].split('\n</response-annotations>')[0];
-  assert.deepEqual(JSON.parse(json), items);
+  const linkedItems = items.map(item => ({ ...item, link: '[[课程/讲义.docx#page=3]]' }));
+  assert.deepEqual(JSON.parse(json), linkedItems);
   assert.equal(prompt.match(/<\/response-annotations>/g).length, 1);
   assert.ok(prompt.endsWith('## My request:\n请逐步解释'));
-  assert.deepEqual(parseAnnotatedPrompt(prompt), { annotations: items, prompt: '请逐步解释' });
+  assert.deepEqual(parseAnnotatedPrompt(prompt), { annotations: linkedItems, prompt: '请逐步解释' });
   assert.equal(parseAnnotatedPrompt('ordinary user text'), null);
 });
 test('annotation-only submissions do not add a default visible request', () => {
   const items = [{ text: 'selected', annotation: 'why', source: { kind: 'file', path: 'notes.pdf', pageStart: 1 } }];
   const prompt = serializeAnnotations(items, '');
-  assert.deepEqual(parseAnnotatedPrompt(prompt), { annotations: items, prompt: '' });
+  assert.deepEqual(parseAnnotatedPrompt(prompt), { annotations: items.map(item => ({ ...item, link: '[[notes.pdf#page=1]]' })), prompt: '' });
+});
+
+test('file annotation provenance gives AI-authored notes exact page or heading links', () => {
+  assert.equal(annotationSourceLink({ kind: 'file', path: '教材.pdf', pageStart: 37 }), '[[教材.pdf#page=37]]');
+  assert.equal(annotationSourceLink({ kind: 'file', path: '课程讲义.md', heading: '3.2 傅里叶变换' }), '[[课程讲义.md#3.2 傅里叶变换]]');
+  assert.equal(annotationSourceLink({ kind: 'file', path: 'analysis.py' }), '[[analysis.py]]');
+  assert.equal(annotationSourceLink({ kind: 'conversation', sessionId: 's1' }), '');
+  const prompt = serializeAnnotations([{ text: '采样定理', annotation: '整理到笔记', source: { kind: 'file', path: '教材.pdf', pageStart: 37 } }], '');
+  assert.match(prompt, /顶层带有 link 字段/);
+  assert.match(prompt, /逐字原样抄写/);
+});
+
+test('historical annotation envelopes survive changed instructions and malformed data is rejected', () => {
+  const old = '# Response annotations:\n旧版的提示文字\n<response-annotations>\n' + JSON.stringify([{ text: '原文', annotation: '解释', source: { kind: 'file', path: 'x.pdf' } }]) + '\n</response-annotations>\n\n## My request:\n继续';
+  assert.deepEqual(parseAnnotatedPrompt(old), { annotations: [{ text: '原文', annotation: '解释', source: { kind: 'file', path: 'x.pdf' } }], prompt: '继续' });
+  assert.equal(parseAnnotatedPrompt(old.replace('"text":"原文"', '"text":17')), null);
 });
 test('assistant annotation labels become local frontend references', () => {
   assert.equal(linkAnnotationReferences('见 [注释 1] 与 [注释 23]。'), '见 [注释 1](#amadeus-annotation-1) 与 [注释 23](#amadeus-annotation-23)。');

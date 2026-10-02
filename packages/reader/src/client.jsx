@@ -98,6 +98,17 @@ function suppressDesktopUnavailable(ctx) {
 function sourcePath(address) {
   return parseEditableAddress(address).path;
 }
+// Preserve a readable section anchor when selected Markdown becomes a note.
+function nearestHeading(scope, node) {
+  const start = node?.nodeType === 1 ? node : node?.parentElement;
+  if (!scope || !start || !scope.contains(start)) return '';
+  let heading = '';
+  for (const candidate of scope.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+    if (candidate !== start && !(candidate.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+    heading = candidate.textContent.replace(/\s+/g, ' ').trim();
+  }
+  return heading;
+}
 const denseText = text => text.replace(/\r\n/g, '\n').replace(/\n[\t ]*\n+/g, '\n').trim();
 function AnnotationChip({ annotations }) {
   useAmadeusLocale();
@@ -377,6 +388,10 @@ function installSelection(ctx, store, activeSession) {
           source.pageEnd = Math.max(startPage, endPage);
           source.pageCount = file.querySelectorAll('[data-pdf-page]').length;
         }
+      }
+      if (source.pageStart === undefined) {
+        const heading = nearestHeading(file, range.startContainer);
+        if (heading) source.heading = heading;
       }
     } else {
       const message = element?.closest('[data-chat-anchor-key]');

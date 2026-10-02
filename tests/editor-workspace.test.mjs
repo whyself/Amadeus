@@ -14,7 +14,7 @@ test('generated workspaces are stable, session isolated, and never rewrite user 
   const workspace = await prepareWorkspace(options);
   const file = new URL(workspace.url, 'http://localhost').searchParams.get('workspace');
   const before = (await stat(file)).mtimeMs;
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { folders: [{ path: project }], settings: { 'amadeus.bridgeId': workspaceId('s1') } });
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { folders: [{ path: project }], settings: { 'amadeus.bridgeId': workspaceId('s1'), 'workbench.activityBar.location': 'default', 'workbench.sideBar.location': 'right' } });
   assert.deepEqual(await prepareWorkspace(options), workspace);
   assert.equal((await stat(file)).mtimeMs, before);
   assert.notEqual((await prepareWorkspace({ ...options, sessionId: 's2' })).url, workspace.url);

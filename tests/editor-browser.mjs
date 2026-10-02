@@ -3,19 +3,20 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { build } from 'esbuild';
-import { chromium, expect } from '@playwright/test';
+import { chromium, webkit, expect } from '@playwright/test';
 
 const result = await build({
   stdin: {
     contents: `import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {EditorTab, apply} from './packages/editor/src/client.jsx';
+import {attachWorkbench, retainWorkbench, disposeWorkbenches} from './packages/editor/src/frame-cache.mjs';
 let closeHandler;
 window.testClosed = 0;
 window.testAnnotations = [];
 window.addEventListener('amadeus:editor-selection', event => { event.detail.handled = true; window.testAnnotations.push(event.detail); });
 window.testClose = () => {
-  try { closeHandler('s1', {id: 'editor-tab'}); }
+  try { closeHandler('s1', {id: window.testTabId}); }
   catch (error) { if (error.name !== 'AmadeusEditorClosePending') throw error; }
 };
 apply({
@@ -31,12 +32,25 @@ apply({
 });
 function Harness() {
   const [mounted, setMounted] = useState(true), [visible, setVisible] = useState(true);
-  const [controller] = useState(() => new AbortController());
+  const [tabId, setTabId] = useState('editor-tab');
+  window.testTabId = tabId;
+  const [controller, setController] = useState(() => new AbortController());
   window.testMount = setMounted; window.testVisible = setVisible; window.testAbort = () => controller.abort();
+  window.testEndTab = () => { controller.abort(); setMounted(false); };
+  window.testNewTab = id => { setTabId(id); setController(new AbortController()); setMounted(true); };
   const [navigation, setNavigation] = useState({ revision: 0, params: new URLSearchParams(location.search).has('initial') ? {address: 'dsh-resource://file/session/s1/a.md'} : undefined });
   window.testNavigate = name => setNavigation(previous => ({revision: previous.revision + 1, params: {address: 'dsh-resource://file/session/s1/' + name}}));
-  return mounted ? <EditorTab sessionId="s1" useTabInfo={() => ({tab: {id: 'editor-tab', navigation, visible, signal: controller.signal}})} /> : null;
+  return mounted ? <EditorTab key={tabId} sessionId="s1" useTabInfo={() => ({tab: {id: tabId, navigation, visible, signal: controller.signal}})} /> : null;
 }
+window.testRetainMany = () => {
+  for (let i = 0; i < 5; i++) {
+    const placeholder = document.createElement('div'); document.body.append(placeholder);
+    const signal = new AbortController();
+    const release = attachWorkbench({key: 'cache-' + i, identity: 'cache-' + i, instance: 'cache-' + i, url: '/amadeus/code/?cache=' + i, placeholder, signal: signal.signal, visible: false});
+    retainWorkbench('cache-' + i); release(); signal.abort(); placeholder.remove();
+  }
+};
+window.testDisposeAll = () => disposeWorkbenches();
 createRoot(document.getElementById('root')).render(<Harness/>);`,
     resolveDir: process.cwd(), loader: 'jsx', sourcefile: 'editor-browser-harness.jsx',
   }, bundle: true, write: false, platform: 'browser', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"development"' },
@@ -83,7 +97,9 @@ const server = http.createServer(async (request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
 try {
-  browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' });
+  browser = process.env.TEST_BROWSER_ENGINE === 'webkit'
+    ? await webkit.launch({ headless: true })
+    : await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' });
   const context = await browser.newContext();
   const page = await context.newPage();
   const errors = [];
@@ -211,6 +227,19 @@ try {
   await page.evaluate(() => window.testClose());
   await expect.poll(() => page.evaluate(() => window.testClosed)).toBe(1);
   assert.equal(dialogCount, 0, 'clean documents close without confirmation even after retry recreated iframe');
+  const cleanSource = await page.locator('iframe').getAttribute('src');
+  const beforeReopenLoads = loads.length;
+  await page.locator('iframe').evaluate(element => { element.dataset.retained = 'yes'; });
+  await page.evaluate(() => window.testEndTab());
+  await expect(page.locator('iframe')).toHaveCount(1);
+  await expect(page.locator('iframe')).toBeHidden();
+  await page.evaluate(() => window.testNewTab('reopened-editor-tab'));
+  await expect(page.getByRole('button', { name: /添加到对话/ })).toBeEnabled();
+  await expect(page.locator('iframe')).toBeVisible();
+  assert.equal(await page.locator('iframe').getAttribute('src'), cleanSource);
+  assert.equal(await page.locator('iframe').getAttribute('data-retained'), 'yes');
+  assert.equal(loads.length, beforeReopenLoads, 'a new tab reuses the closed clean workbench and its bridge');
+  console.log('PASS: closing then reopening a clean editor in the same session retains its workbench');
   dirty = true;
   await page.evaluate(() => window.testClose());
   await expect.poll(() => dialogCount).toBe(1);
@@ -225,7 +254,12 @@ try {
   console.log('PASS: authoritative clean status closes silently; dirty cancel preserves editor and acceptance bypasses recursive guard');
   await page.evaluate(() => window.testAbort());
   await expect(page.locator('iframe')).toHaveCount(0);
-  console.log('PASS: aborting the tab record disposes its cached iframe');
+  console.log('PASS: confirmed dirty close disposes the workbench and cancel preserves it');
+  await page.evaluate(() => window.testRetainMany());
+  await expect(page.locator('iframe')).toHaveCount(3);
+  await page.evaluate(() => window.testDisposeAll());
+  await expect(page.locator('iframe')).toHaveCount(0);
+  console.log('PASS: retained clean frames are bounded and plugin disposal releases every workbench');
 } finally {
   await browser?.close();
   await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });

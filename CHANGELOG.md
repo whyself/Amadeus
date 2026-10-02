@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- 选择并调整 [YeJingchen / @YJC18368291437-ai](https://github.com/YJC18368291437-ai) fork 中经审批的 Safari API、PDF worker 与原生构造器兼容修复；保留 PWA 和 Chrome 原有使用方式。
+- 参考 fork 保留关闭编辑标签后的工作台，并调整编辑器文件树布局；继续保护未保存内容。
+- 为文件注释提供出处链接，提示模型在整理笔记时保留出处。
+- 增加触屏整页缩放与漂移防护，保留文档内独立手势和滚动。
+- 增加“先部署服务端，再选择连接方式”的 [部署教程](docs/guide-deployment.md)，覆盖 Windows Docker、WSL 原生、远端 Linux、本地连接、Tailscale HTTPS 和公网反向代理。
+- 贡献归属与原始提交详见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。本节内容尚未发布，不属于现有 `v1.1.3` 标签。
+
 ## 1.1.3 — 2026-09-26（正式版）
 
 - 修复 Android 平板和慢速客户端保存文件时的竞态误报：保存完成后立即确认磁盘版本，不再把编辑器自己的保存动作提示为“文件被外部修改”。
