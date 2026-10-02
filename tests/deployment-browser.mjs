@@ -30,7 +30,8 @@ function docker(args) {
   });
 }
 let started = false, browser, page;
-const errors = [];
+const errors = [], consoleErrors = [];
+let openingEditor = false;
 try {
   await docker(['run', '-d', '--name', name, '-p', '127.0.0.1::3080', '--mount', `type=bind,source=${config},target=/config/amadeus.yml,readonly`, '--mount', `type=bind,source=${workspace},target=/workspace`, image]);
   started = true;
@@ -48,7 +49,7 @@ try {
   const context = await browser.newContext({ locale: 'zh-CN', httpCredentials: { username, password }, viewport: { width: 1500, height: 1000 } });
   page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), url: message.location().url, openingEditor }); });
   await page.goto(origin);
   await page.getByRole('button', { name: '继续', exact: true }).click();
   await page.getByRole('button', { name: '稍后配置', exact: true }).click();
@@ -95,16 +96,28 @@ try {
   await page.locator('[data-pdf-page="1"] [data-pdf-text] .textLayer span').first().waitFor({ timeout: 60000 });
   console.log('PASS: actual LibreOffice document conversion and native text layer');
   await page.getByRole('tab', { name: /文件/ }).first().click();
+  openingEditor = true;
   await page.getByRole('button', { name: '在编辑器中打开 notes.md', exact: true }).click();
   const frame = page.frameLocator('iframe.amadeus-code-frame');
   await frame.locator('.monaco-workbench').waitFor({ timeout: 90000 });
   await expect(frame.locator('.tab.active')).toContainText('notes.md');
+  await expect.poll(async () => (await frame.locator('.view-lines').allTextContents()).join('\n')).toContain('Docker native preview.');
   await page.screenshot({ path: path.join(directory, 'code-server.png') });
   assert.deepEqual(errors, []);
+  const unexpected = consoleErrors.filter(error => {
+    if (!error.openingEditor || !/^Failed to load resource:/.test(error.text)) return true;
+    const pathname = new URL(error.url, origin).pathname;
+    // Bridge polling starts before VS Code has an active document. Its 503
+    // (connecting), 409 (no active editor) and optional code-server 404 resources
+    // are startup states; the assertions above require the document to open.
+    return !((pathname.startsWith('/amadeus/editor/') && /status of (503|409)/.test(error.text))
+      || (pathname.startsWith('/amadeus/code/') && /status of 404/.test(error.text) && !/\.(js|css)(?:$|\?)/.test(pathname)));
+  });
+  assert.deepEqual(unexpected, []);
   console.log('PASS: actual DSH-to-code-server bridge opens the selected file without console errors');
 } finally {
   await page?.screenshot({ path: path.join(directory, 'final.png') }).catch(()=>{});
-  if (errors.length) await writeFile(path.join(directory, 'browser-errors.json'), JSON.stringify(errors, null, 2));
+  if (errors.length || consoleErrors.length) await writeFile(path.join(directory, 'browser-errors.json'), JSON.stringify({ errors, consoleErrors }, null, 2));
   await browser?.close();
   if (started) {
     await writeFile(path.join(directory, 'container.log'), await docker(['logs', name]));
