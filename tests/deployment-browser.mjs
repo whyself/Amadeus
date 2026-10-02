@@ -51,6 +51,9 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), url: message.location().url, openingEditor }); });
   await page.goto(origin);
+  // Docker Desktop's cold filesystem/RPC initialization can outlast the HTTP
+  // listener. Wait for the selected workspace before persisting onboarding.
+  await expect(page.locator('[aria-label="选择工作区"]').first()).toContainText('workspace', { timeout: 60000 });
   await page.getByRole('button', { name: '继续', exact: true }).click();
   await page.getByRole('button', { name: '稍后配置', exact: true }).click();
   const input = page.locator('[data-composer-input]').first();
