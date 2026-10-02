@@ -4,6 +4,8 @@ Amadeus 是面向单用户的 [DeepSeek Harness（DSH）](https://github.com/dee
 
 **当前版本：v1.1.3。** 当前代码固定依赖 DSH `0.1.7-rc.2`（预发布候选版）、code-server `4.104.2` 和 LaTeX Workshop `10.9.0`。推荐用 Docker Compose 部署；宿主机无需单独安装 Node.js、code-server 或 TeX Live。
 
+第一次安装请看 [部署与连接教程](docs/guide-deployment.md)：先选择 Windows Docker、WSL Ubuntu 或远端 Linux 部署服务，再选择本机、Tailscale 私有 HTTPS 或公网域名访问。当前正式版与主分支未发布改动的区别也在教程中说明。
+
 ## 能做什么
 
 | 功能 | 使用方式 |
@@ -137,3 +139,7 @@ npm run pack:plugins
 后台同步不依赖浏览器焦点：扩展监听文档生命周期与目录事件，并每秒对已跟踪的打开文件执行一次元数据检查。该检查用于 Docker Desktop 等可能漏文件事件的挂载目录，不扫描整个工作区；只有发现版本变化时才读取文档。未保存修改会显示冲突，需用户明确选择重新加载才会丢弃。
 
 代码位置：`packages/login` 负责认证，`packages/files` 负责工作区文件，`packages/reader` 负责注释与原生预览增强，`packages/editor` 负责 code-server 集成。详细变更见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 贡献
+
+感谢社区对浏览器兼容、编辑器体验与部署文档的改进。贡献者及所采用修改的来源见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
