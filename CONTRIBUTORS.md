@@ -14,13 +14,3 @@
 | 部署教程结构参考，按主仓库脚本重写成“部署服务端 → 选择连接方式” | [da370a1](https://github.com/YJC18368291437-ai/Amadeus/commit/da370a168fbfaa9b25dbc70fff03fdff3f3de233)，[cb6da4d](https://github.com/YJC18368291437-ai/Amadeus/commit/cb6da4dd4b51ece919012de8ca2e701e651513aa) |
 
 Safari 兼容按适用环境接入，保留 PWA 和 Chrome 的原有行为。编辑器保持主仓库的工作台身份与未保存内容保护。没有采用 notebook 扩展、`/note` 快记与自动 Git 推送、Synapse 会话地图、学习面板、关闭 PWA、服务更新强制刷新，以及全局移除长聊天渲染优化。
-
-### Git 中如何记录共同贡献
-
-对于保留原提交的直接 cherry-pick，Git 会保留原作者。本次是选择、改写多个提交中的部分功能，集成提交由维护者提交，并通过 `Co-authored-by` trailer 标注共同贡献：
-
-~~~text
-Co-authored-by: YeJingchen <314240075+YJC18368291437-ai@users.noreply.github.com>
-~~~
-
-这里使用该公开 GitHub 账号的 ID 与登录名组成 GitHub noreply 地址，无需获取个人邮箱或登录贡献者账号。GitHub 通过提交作者/共同作者邮箱关联账号；共同作者标记是归属记录，不代表贡献者对集成提交进行了签名或审批。贡献活动是否显示还受 GitHub 默认分支等规则影响。
