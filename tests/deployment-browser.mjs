@@ -101,17 +101,18 @@ try {
   const frame = page.frameLocator('iframe.amadeus-code-frame');
   await frame.locator('.monaco-workbench').waitFor({ timeout: 90000 });
   await expect(frame.locator('.tab.active')).toContainText('notes.md');
-  await expect.poll(async () => (await frame.locator('.view-lines').allTextContents()).join('\n')).toContain('Docker native preview.');
+  await expect.poll(async () => (await frame.locator('.view-lines').allTextContents()).join('\n').replaceAll('\u00a0', ' ')).toContain('Docker native preview.');
   await page.screenshot({ path: path.join(directory, 'code-server.png') });
   assert.deepEqual(errors, []);
   const unexpected = consoleErrors.filter(error => {
-    if (!error.openingEditor || !/^Failed to load resource:/.test(error.text)) return true;
     const pathname = new URL(error.url, origin).pathname;
+    if (error.openingEditor && pathname.startsWith('/amadeus/code/') && error.text.includes('[DEP0040] DeprecationWarning: The `punycode` module is deprecated.')) return false;
+    if (!error.openingEditor || !/^Failed to load resource:/.test(error.text)) return true;
     // Bridge polling starts before VS Code has an active document. Its 503
-    // (connecting), 409 (no active editor) and optional code-server 404 resources
+    // (connecting), 409 (no active editor) and the unshipped VSDA licensing module
     // are startup states; the assertions above require the document to open.
     return !((pathname.startsWith('/amadeus/editor/') && /status of (503|409)/.test(error.text))
-      || (pathname.startsWith('/amadeus/code/') && /status of 404/.test(error.text) && !/\.(js|css)(?:$|\?)/.test(pathname)));
+      || (/^\/amadeus\/code\/stable-[a-f0-9]+\/static\/node_modules\/vsda\/rust\/web\/(vsda_bg\.wasm|vsda\.js)$/.test(pathname) && /status of 404/.test(error.text)));
   });
   assert.deepEqual(unexpected, []);
   console.log('PASS: actual DSH-to-code-server bridge opens the selected file without console errors');
