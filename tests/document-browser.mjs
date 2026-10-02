@@ -40,6 +40,9 @@ try {
   for (const name of process.argv[3].split('/')) await page.getByRole('button', { name, exact: true }).click();
   const controls = page.locator('[data-document-zoom-controls]');
   await controls.waitFor();
+  const zoomFrame = await page.locator('[data-document-zoom-frame]').boundingBox();
+  await page.mouse.move(zoomFrame.x + zoomFrame.width / 2, zoomFrame.y + zoomFrame.height - 22);
+  await controls.locator('[aria-label="放大"]').waitFor();
   await controls.hover();
   const frame = page.locator('[data-document-zoom-frame]');
   await page.locator('[data-pdf-page="1"] [data-pdf-text] .textLayer span').first().waitFor();

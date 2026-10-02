@@ -29,7 +29,7 @@ function docker(args) {
     child.on('error', reject); child.on('exit', code => code === 0 ? resolve(stdout.trim()) : reject(new Error(`docker ${args[0]} failed: ${stderr}`)));
   });
 }
-let started = false, browser;
+let started = false, browser, page;
 const errors = [];
 try {
   await docker(['run', '-d', '--name', name, '-p', '127.0.0.1::3080', '--mount', `type=bind,source=${config},target=/config/amadeus.yml,readonly`, '--mount', `type=bind,source=${workspace},target=/workspace`, image]);
@@ -46,7 +46,7 @@ try {
   console.log('PASS: container authentication, public PWA manifest and actual XeLaTeX compilation');
   browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || 'msedge' });
   const context = await browser.newContext({ locale: 'zh-CN', httpCredentials: { username, password }, viewport: { width: 1500, height: 1000 } });
-  const page = await context.newPage();
+  page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(origin);
@@ -70,6 +70,9 @@ try {
   await textLayer.locator('span').first().waitFor();
   const canvas = page.locator('[data-pdf-page="1"] canvas');
   const controls = page.locator('[data-document-zoom-controls]');
+  const zoomFrame = await page.locator('[data-document-zoom-frame]').boundingBox();
+  await page.mouse.move(zoomFrame.x + zoomFrame.width / 2, zoomFrame.y + zoomFrame.height - 22);
+  await expect(controls).toHaveAttribute('data-document-zoom-visible', 'true');
   await controls.hover();
   const initialWidth = (await canvas.boundingBox()).width;
   await controls.getByRole('button', { name: '放大', exact: true }).click();
@@ -100,6 +103,8 @@ try {
   assert.deepEqual(errors, []);
   console.log('PASS: actual DSH-to-code-server bridge opens the selected file without console errors');
 } finally {
+  await page?.screenshot({ path: path.join(directory, 'final.png') }).catch(()=>{});
+  if (errors.length) await writeFile(path.join(directory, 'browser-errors.json'), JSON.stringify(errors, null, 2));
   await browser?.close();
   if (started) {
     await writeFile(path.join(directory, 'container.log'), await docker(['logs', name]));
