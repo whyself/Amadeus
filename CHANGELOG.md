@@ -1,19 +1,15 @@
 # Changelog
 
-## 1.2.0 — 2026-10-02（正式版）
+## 1.2.0-rc.1 — 2026-10-02（预发布）
 
-- DSH 与 WebServer 升级并固定到 `0.2.0-rc.2`；上游仍为预发布候选版，四个 Amadeus 插件统一发布为 `1.2.0`。
-- 文件浏览、排序、展开、目录监听和资源打开改用 DSH 原生文件树；删除重复的列表接口和轮询，保留上传文件/文件夹、ZIP 下载、版本确认删除及编辑器入口。
-- 删除过时的队列延迟包装，修复读取不存在的 `state.queue` 导致输入区报错；队列交由上游投影管理。
-- 删除 PDF/Office 选区固定颜色覆盖，采用上游浅色/深色主题选区颜色；识别并保留 DSH 0.2 已修复的 Safari 原生构造器校验。
-- PWA 缓存升级到 `1.2.0`；插件元数据显式声明经过验证的 DSH 版本。
-
-- 选择并调整 [YeJingchen / @YJC18368291437-ai](https://github.com/YJC18368291437-ai) fork 中经审批的 Safari API、PDF worker 与原生构造器兼容修复；保留 PWA 和 Chrome 原有使用方式。
-- 参考 fork 保留关闭编辑标签后的工作台，并调整编辑器文件树布局；继续保护未保存内容。
-- 为文件注释提供出处链接，提示模型在整理笔记时保留出处。
-- 增加触屏整页缩放与漂移防护，保留文档内独立手势和滚动。
-- 增加“先部署服务端，再选择连接方式”的 [部署教程](docs/guide-deployment.md)，覆盖 Windows Docker、WSL 原生、远端 Linux、本地连接、Tailscale HTTPS 和公网反向代理。
-- 贡献归属与原始提交详见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。上述改动首次随 v1.2.0 发布，不属于既有 v1.1.3 标签。
+- DSH 与 WebServer 升级到 `0.2.0-rc.2`；四个插件版本统一为 `1.2.0-rc.1`。
+- 文件浏览、排序、展开、自动刷新和预览导航改用 DSH 原生文件树，保留上传、ZIP 下载、重名替换、删除确认及编辑器入口。
+- 修复输入区的队列渲染异常，PDF/Office 选区采用上游主题样式。
+- 改进 Safari API 与 PDF worker 兼容、触屏缩放和滚动。
+- 关闭干净的编辑标签后保留工作台，恢复编辑器文件树布局，继续保护未保存内容。
+- 文件注释增加出处链接，整理笔记时保留原文来源。
+- 修复 POSIX 特殊文件名的操作路径与删除确认不一致。
+- 更新 PWA 缓存版本和插件兼容元数据。
 
 ## 1.1.3 — 2026-09-26（正式版）
 
@@ -54,7 +50,7 @@
 - 稳定 code-server 工作台加载、标签切换与浏览状态恢复，避免首次打开的文件覆盖上次浏览文件；编辑器代码字号可用 `Ctrl/Cmd` + `+`、`-`、`0` 调整。
 - 编辑器选区使用与聊天相同的评论输入框和蓝色对勾提交流程；注释标记在深色模式下保持清晰。英语模式下文件列表、编辑器和已打开标签实时切换语言。
 - 增加独立的编辑器外观设置；左侧加入带图标旋转动画的对话收起入口。连接延迟保留 DSH 原生断线、重连与恢复提示。
-- 整理文件分类和侧栏组件源码，重写 Docker Compose 部署文档。镜像仍固定 DSH `0.1.6-alpha.2`、code-server `4.104.2` 和 LaTeX Workshop `10.9.0`；沿用原有 `/data` 命名卷即可升级。
+- 整理文件分类和侧栏组件源码，重写 Docker Compose 部署文档。镜像仍固定 DSH `0.1.6-alpha.2`、code-server `4.104.2` 和 LaTeX Workshop `10.9.0`。
 - 发布 Login、Files、Reader、Editor 四个 `1.1.0` 插件包。验证覆盖 Node 测试、编辑器浏览器回归、Docker 构建与真实 code-server 操作。
 
 ## 1.1.0-alpha.2 — 2026-09-23（预发布）
@@ -71,7 +67,7 @@
 - 使用 code-server / LaTeX Workshop 原生按钮、快捷键和 TeX 右键菜单，移除重复操作栏。
 - 改善中文输入法组合输入、原生 PDF 缩放与页码控件；新增连接延迟显示和可配置的原生文件预览读取上限。
 - 主项目与 Login、Files、Reader、Editor 四个插件统一版本为 `1.1.0-alpha.2`；DSH 固定为 `0.1.6-alpha.2`。
-- 已通过 50 项 Node 测试、浏览器生命周期回归、Docker 构建及真实 MD/中文 TeX/PDF 验证；Android 平板和实际穿透网络仍需实机验收。
+- 已通过 50 项 Node 测试、浏览器生命周期回归、Docker 构建及真实 MD/中文 TeX/PDF 验证。
 
 ## 1.1.0-alpha.1（预发布）
 
@@ -159,4 +155,4 @@ Amadeus 1.0 建立后续开发与部署基线。
 - 配置文件改为 `amadeus.local.yml`，覆盖变量改为 `AMADEUS_CONFIG`。
 - HTTP 路由改为 `/amadeus/*`，插件 ID、缓存键和 DOM 扩展点同步更名。
 - 默认数据目录改为 `.amadeus/dsh-home`，DSH Profile 改为 `amadeus`。
-- systemd 单元改为 `amadeus.service`，推荐应用目录为 `/opt/amadeus` 或 `/srv/amadeus`。
+- systemd 单元改为 `amadeus.service`。

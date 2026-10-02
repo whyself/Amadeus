@@ -25,7 +25,7 @@ flowchart TD
 
 ### 版本说明
 
-最新正式版是 **v1.2.0**。下面默认克隆这个标签，包含 DSH `0.2.0-rc.2` 升级、Safari 兼容、注释出处链接、编辑器工作台恢复和原生文件树整合。DSH 依赖仍是预发布候选版；升级前备份配置、工作区与数据卷。
+当前预发布版是 **v1.2.0-rc.1**，最新正式版仍为 **v1.1.3**。下面示例使用当前预发布标签，包含 DSH `0.2.0-rc.2` 升级、Safari 兼容、注释出处链接、编辑器工作台恢复和原生文件树整合。DSH 依赖仍是预发布候选版；升级前备份配置、工作区与数据卷。
 
 当前部署固定使用 Node.js **24**、code-server **4.104.2**、LaTeX Workshop **10.9.0**。补丁针对这些版本，请先按文档安装，避免自行换成 code-server 或扩展的最新版本。
 
@@ -50,7 +50,7 @@ docker compose version
 在你希望保存项目的目录执行：
 
 ~~~powershell
-git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0-rc.1 --depth 1 https://github.com/whyself/Amadeus.git
 Set-Location Amadeus
 Copy-Item amadeus.docker.example.yml amadeus.local.yml
 New-Item -ItemType Directory -Force workspace
@@ -119,7 +119,7 @@ npm --version
 ### B2. 构建 Amadeus
 
 ~~~bash
-git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0-rc.1 --depth 1 https://github.com/whyself/Amadeus.git
 cd Amadeus
 npm ci
 npm run build
@@ -287,7 +287,7 @@ sudo docker compose version
 已安装其他 Docker 发行包时，先按官方文档处理包冲突，不要重复安装。后续 `docker compose` 若没有权限请加 `sudo`。确认版本命令可用后：
 
 ~~~bash
-git clone --branch v1.2.0 --depth 1 https://github.com/whyself/Amadeus.git
+git clone --branch v1.2.0-rc.1 --depth 1 https://github.com/whyself/Amadeus.git
 cd Amadeus
 cp amadeus.docker.example.yml amadeus.local.yml
 mkdir -p workspace
@@ -493,11 +493,11 @@ docker compose start
 
 ~~~bash
 git fetch --tags
-git switch --detach v1.2.0
+git switch --detach v1.2.0-rc.1
 docker compose up -d --build
 ~~~
 
-这里演示切换当前正式标签；新版本发布后替换标签。升级到主分支已合入的未发布改动，可依次执行 `git fetch origin main`、`git switch --detach FETCH_HEAD` 后重新构建。按标签浅克隆的仓库可能没有 `origin/main`，因此这里直接使用刚抓取的提交。请先确认没有自己的源代码修改。服务不会强制刷新正在编辑的浏览器；保存内容后自行刷新页面。
+这里演示切换当前预发布标签；新版本发布后替换标签。升级到主分支已合入的未发布改动，可依次执行 `git fetch origin main`、`git switch --detach FETCH_HEAD` 后重新构建。按标签浅克隆的仓库可能没有 `origin/main`，因此这里直接使用刚抓取的提交。请先确认没有自己的源代码修改。服务不会强制刷新正在编辑的浏览器；保存内容后自行刷新页面。
 
 原生升级还需重新构建并更新 Bridge：
 

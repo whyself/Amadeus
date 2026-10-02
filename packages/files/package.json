@@ -1,6 +1,6 @@
 {
   "name": "dsh-amadeus-files",
-  "version": "1.2.0",
+  "version": "1.2.0-rc.1",
   "type": "module",
   "main": "dist/index.mjs",
   "exports": {
