@@ -56,7 +56,7 @@ createRoot(document.getElementById('root')).render(<Harness/>);`,
   }, bundle: true, write: false, platform: 'browser', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"development"' },
   plugins: [{ name: 'stub-dsh-appearance-icons', setup(build) {
     build.onResolve({ filter: /^@deepseek-ai\/dsh-client-ui-primitives$/ }, () => ({ path: 'appearance-icons', namespace: 'browser-test' }));
-    build.onLoad({ filter: /.*/, namespace: 'browser-test' }, () => ({ contents: 'export const IconLightOutline16 = () => null; export const IconDarkOutline16 = () => null; export const IconFollowsystemOutline16 = () => null;', loader: 'js' }));
+    build.onLoad({ filter: /.*/, namespace: 'browser-test' }, () => ({ contents: 'export const IconLightOutlineMedium = () => null; export const IconDarkOutlineMedium = () => null; export const IconFollowsystemOutlineMedium = () => null;', loader: 'js' }));
   } }],
 });
 const requests = [], loads = [];

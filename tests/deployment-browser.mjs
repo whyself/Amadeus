@@ -105,6 +105,19 @@ try {
   await frame.locator('.monaco-workbench').waitFor({ timeout: 90000 });
   await expect(frame.locator('.tab.active')).toContainText('notes.md');
   await expect.poll(async () => (await frame.locator('.view-lines').allTextContents()).join('\n').replaceAll('\u00a0', ' ')).toContain('Docker native preview.');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  const appearance = page.locator('.amadeus-editor-appearance');
+  await expect(appearance).toContainText('编辑器外观');
+  await expect(appearance.locator('svg')).toHaveCount(3);
+  const editorBackground = () => frame.locator('.monaco-editor').first().evaluate(element => getComputedStyle(element).backgroundColor);
+  await appearance.getByRole('button', { name: '浅色', exact: true }).click();
+  await expect.poll(editorBackground).toBe('rgb(255, 255, 255)');
+  await appearance.getByRole('button', { name: '深色', exact: true }).click();
+  await expect.poll(editorBackground).toBe('rgb(30, 30, 30)');
+  await appearance.getByRole('button', { name: '跟随系统', exact: true }).click();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(editorBackground).toBe('rgb(255, 255, 255)');
+  console.log('PASS: actual DSH settings icons and code-server background light/dark/system propagation');
   await page.screenshot({ path: path.join(directory, 'code-server.png') });
   assert.deepEqual(errors, []);
   const unexpected = consoleErrors.filter(error => {

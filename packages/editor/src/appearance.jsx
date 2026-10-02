@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { IconLightOutline16, IconDarkOutline16, IconFollowsystemOutline16 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconLightOutlineMedium, IconDarkOutlineMedium, IconFollowsystemOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives';
 
 const key = 'amadeus.editor.appearance';
 const modes = ['light', 'dark', 'system'];
-const icons = { light: IconLightOutline16, dark: IconDarkOutline16, system: IconFollowsystemOutline16 };
+const icons = { light: IconLightOutlineMedium, dark: IconDarkOutlineMedium, system: IconFollowsystemOutlineMedium };
 
 export function editorAppearance() {
   try { const value = localStorage.getItem(key); return modes.includes(value) ? value : 'system'; }
