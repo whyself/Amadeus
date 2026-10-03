@@ -15,11 +15,22 @@ test('editor bridge authenticates, confines files, and exposes only editor actio
   await fs.writeFile(file, 'hello');
   await fs.writeFile(outside, 'secret');
   const calls = [];
-  const settings = { workbench: { colorTheme: 'Default Light+' }, editor: { fontSize: 16 } };
+  const settings = { workbench: { colorTheme: 'Default Light+', colorCustomizations: {
+    'editor.lineHighlightBorder': '#00000000',
+    'editorCursor.foreground': '#ABCDEF',
+    '[Default Light+]': { 'editor.lineHighlightBackground': '#0000000F' },
+    '[Default Dark+]': { 'editor.lineHighlightBackground': '#FFFFFF14' },
+    '[Default Light Modern]': { 'activityBar.foreground': '#123456' },
+    '[Default Dark Modern]': { 'editor.lineHighlightBackground': '#112233' },
+  } }, editor: { fontSize: 16 } };
   const document = { uri: { scheme: 'file', fsPath: file }, isDirty: true, lineCount: 1, getText: () => 'hello', positionAt: character => ({ line: 0, character }) };
   const current = { document, selection: { start: { line: 0 }, end: { line: 0 } }, revealRange() {} };
   const vscode = {
-    workspace: { getConfiguration: section => section === 'amadeus' ? { get: () => 'a'.repeat(64) } : { get: key => settings[section]?.[key], update: async (key, value) => { settings[section][key] = value; } }, workspaceFolders: [{ uri: { fsPath: workspace } }], textDocuments: [document], openTextDocument: async () => document },
+    workspace: { getConfiguration: section => section === 'amadeus' ? { get: () => 'a'.repeat(64) } : {
+      get: key => key === 'colorCustomizations' ? { ...settings[section]?.[key], 'sideBar.background': 'workspace-only' } : settings[section]?.[key],
+      inspect: key => ({ globalValue: settings[section]?.[key] }),
+      update: async (key, value) => { settings[section][key] = value; },
+    }, workspaceFolders: [{ uri: { fsPath: workspace } }], textDocuments: [document], openTextDocument: async () => document },
     window: { activeTextEditor: current, visibleTextEditors: [current], showTextDocument: async () => current, showErrorMessage() {} },
     commands: { executeCommand: async (command, uri, discard) => {
       calls.push(command);
@@ -54,7 +65,27 @@ test('editor bridge authenticates, confines files, and exposes only editor actio
   assert.equal(current.selection.end.character, 4);
   assert.deepEqual(await (await invoke({ action: 'selection' })).json(), { text: 'hello', path: 'paper.tex', lineStart: 1, lineEnd: 1 });
   assert.equal((await invoke({ action: 'theme', theme: 'dark' })).status, 200);
-  assert.equal(settings.workbench.colorTheme, 'Default Dark+');
+  assert.equal(settings.workbench.colorTheme, 'Default Dark Modern');
+  assert.deepEqual(settings.workbench.colorCustomizations['[Default Light Modern]'], { 'activityBar.foreground': '#123456', 'editor.lineHighlightBackground': '#0000000F' });
+  assert.equal(settings.workbench.colorCustomizations['[Default Dark Modern]']['editor.lineHighlightBackground'], '#112233');
+  assert.equal(settings.workbench.colorCustomizations['editor.lineHighlightBorder'], '#00000000');
+  assert.equal(settings.workbench.colorCustomizations['editorCursor.foreground'], '#ABCDEF');
+  assert.equal(settings.workbench.colorCustomizations['sideBar.background'], undefined, 'workspace overrides are not copied to global settings');
+  assert.equal((await invoke({ action: 'theme', theme: 'light' })).status, 200);
+  assert.equal(settings.workbench.colorTheme, 'Default Light Modern');
+  for (const selector of ['[Default Dark Modern][Default Light Modern]', '[*Modern*]']) {
+    const customized = {
+      '[Default Light+]': { 'editor.lineHighlightBackground': '#0000000F' },
+      '[Default Dark+]': { 'editor.lineHighlightBackground': '#FFFFFF14' },
+      [selector]: { 'editor.lineHighlightBackground': '#445566' },
+    };
+    settings.workbench.colorCustomizations = customized;
+    assert.equal((await invoke({ action: 'theme', theme: 'dark' })).status, 200);
+    assert.equal((await invoke({ action: 'theme', theme: 'light' })).status, 200);
+    assert.deepEqual(settings.workbench.colorCustomizations, customized, 'combined/wildcard Modern override stays effective');
+    assert.equal(settings.workbench.colorCustomizations['[Default Dark Modern]'], undefined);
+    assert.equal(settings.workbench.colorCustomizations['[Default Light Modern]'], undefined);
+  }
   assert.equal((await invoke({ action: 'theme', theme: 'invalid' })).status, 400);
   assert.deepEqual(await (await invoke({ action: 'fontSize' })).json(), { size: 16 });
   assert.deepEqual(await (await invoke({ action: 'fontSize', size: 18 })).json(), { size: 18 });

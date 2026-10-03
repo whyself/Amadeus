@@ -110,14 +110,18 @@ try {
   await expect(appearance).toContainText('编辑器外观');
   await expect(appearance.locator('svg')).toHaveCount(3);
   const editorBackground = () => frame.locator('.monaco-editor').first().evaluate(element => getComputedStyle(element).backgroundColor);
+  const chromeBackgrounds = () => frame.locator('.monaco-workbench .part.activitybar, .monaco-workbench .part.sidebar, .monaco-workbench .part.statusbar').evaluateAll(elements => elements.map(element => getComputedStyle(element).backgroundColor));
   await appearance.getByRole('button', { name: '浅色', exact: true }).click();
   await expect.poll(editorBackground).toBe('rgb(255, 255, 255)');
+  await expect.poll(chromeBackgrounds).toEqual(['rgb(248, 248, 248)', 'rgb(248, 248, 248)', 'rgb(248, 248, 248)']);
   await appearance.getByRole('button', { name: '深色', exact: true }).click();
-  await expect.poll(editorBackground).toBe('rgb(30, 30, 30)');
+  await expect.poll(editorBackground).toBe('rgb(31, 31, 31)');
+  await expect.poll(chromeBackgrounds).toEqual(['rgb(24, 24, 24)', 'rgb(24, 24, 24)', 'rgb(24, 24, 24)']);
   await appearance.getByRole('button', { name: '跟随系统', exact: true }).click();
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(editorBackground).toBe('rgb(255, 255, 255)');
-  console.log('PASS: actual DSH settings icons and code-server background light/dark/system propagation');
+  await expect.poll(chromeBackgrounds).toEqual(['rgb(248, 248, 248)', 'rgb(248, 248, 248)', 'rgb(248, 248, 248)']);
+  console.log('PASS: actual DSH settings and matching editor/activity/sidebar/status backgrounds in light/dark/system');
   await page.screenshot({ path: path.join(directory, 'code-server.png') });
   assert.deepEqual(errors, []);
   const unexpected = consoleErrors.filter(error => {

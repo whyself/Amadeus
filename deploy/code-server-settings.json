@@ -9,7 +9,9 @@
   "workbench.colorCustomizations": {
     "editor.lineHighlightBorder": "#00000000",
     "[Default Light+]": { "editor.lineHighlightBackground": "#0000000F" },
-    "[Default Dark+]": { "editor.lineHighlightBackground": "#FFFFFF14" }
+    "[Default Dark+]": { "editor.lineHighlightBackground": "#FFFFFF14" },
+    "[Default Light Modern]": { "editor.lineHighlightBackground": "#0000000F" },
+    "[Default Dark Modern]": { "editor.lineHighlightBackground": "#FFFFFF14" }
   },
   "workbench.statusBar.visible": true,
   "workbench.editor.enablePreview": false,

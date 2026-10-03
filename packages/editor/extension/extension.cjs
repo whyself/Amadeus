@@ -6,6 +6,30 @@ const crypto = require('node:crypto');
 const { createDocumentSync } = require('./document-sync.cjs');
 
 let active;
+function withModernHighlights(colors) {
+  if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return;
+  let next;
+  for (const mode of ['Light', 'Dark']) {
+    const legacy = colors[`[Default ${mode}+]`];
+    const theme = `Default ${mode} Modern`;
+    const key = `[${theme}]`;
+    const modern = colors[key];
+    const customized = Object.entries(colors).some(([selector, value]) => {
+      if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'editor.lineHighlightBackground')) return false;
+      return [...selector.matchAll(/\[([^\]]+)\]/g)].some(([, pattern]) => {
+        const escaped = pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+        return new RegExp(`^${escaped}$`).test(theme);
+      });
+    });
+    if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy)
+      || typeof legacy['editor.lineHighlightBackground'] !== 'string'
+      || (modern !== undefined && (!modern || typeof modern !== 'object' || Array.isArray(modern)))
+      || customized) continue;
+    next ??= { ...colors };
+    next[key] = { ...modern, 'editor.lineHighlightBackground': legacy['editor.lineHighlightBackground'] };
+  }
+  return next;
+}
 function failure(message, status = 400) { return Object.assign(new Error(message), { status }); }
 function inside(root, file) {
   const relative = path.relative(root, file);
@@ -21,6 +45,7 @@ async function createBridge(vscode, directory = process.env.AMADEUS_EDITOR_BRIDG
   const token = crypto.randomBytes(32).toString('hex');
   const registration = path.join(directory, `${bridgeId}.json`);
   const documentStreams = new Set();
+  let themeUpdates = Promise.resolve();
   async function checked(file) {
     if (typeof file !== 'string' || !path.isAbsolute(file)) throw failure('An absolute file path is required.');
     let resolved;
@@ -76,8 +101,18 @@ async function createBridge(vscode, directory = process.env.AMADEUS_EDITOR_BRIDG
       }
       case 'theme': {
         if (!['light', 'dark'].includes(body.theme)) throw failure('Invalid editor theme.');
-        await vscode.workspace.getConfiguration('workbench').update('colorTheme', body.theme === 'dark' ? 'Default Dark+' : 'Default Light+', vscode.ConfigurationTarget.Global);
-        return { changed: true };
+        const theme = body.theme;
+        const update = themeUpdates.catch(() => {}).then(async () => {
+          const workbench = vscode.workspace.getConfiguration('workbench');
+          // Migrate only saved global highlight fills; never promote workspace
+          // overrides or overwrite a user's existing Modern customization.
+          const migrated = withModernHighlights(workbench.inspect?.('colorCustomizations')?.globalValue);
+          if (migrated) await workbench.update('colorCustomizations', migrated, vscode.ConfigurationTarget.Global);
+          await workbench.update('colorTheme', theme === 'dark' ? 'Default Dark Modern' : 'Default Light Modern', vscode.ConfigurationTarget.Global);
+          return { changed: true };
+        });
+        themeUpdates = update;
+        return update;
       }
       case 'fontSize': {
         const setting = vscode.workspace.getConfiguration('editor');
