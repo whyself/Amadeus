@@ -1,9 +1,5 @@
 # 更新日志 / Changelog
 
-[中文](#cn-changelog) | [English](#en-changelog)
-
-<h2 id="cn-changelog">中文</h2>
-
 ## 1.2.0-rc.1 — 2026-10-02 （预发布；2026-10-04 更新）
 
 ### 新增功能
@@ -207,8 +203,6 @@
 - 建立 Basic Auth、HTTPS/nginx 与 systemd 模板、工作区边界、符号链接逃逸防护、传输与预览上限及单用户权限模型。 由 [**@whyself**](https://github.com/whyself)
 - 建立 Node.js 24 构建、四个独立 DSH 插件包和测试基线。 由 [**@whyself**](https://github.com/whyself)
 - 破坏性变更：项目命名空间、路由、插件 ID、DOM 扩展点和缓存键统一为 `amadeus`；使用 `amadeus.local.yml`、`AMADEUS_CONFIG`、`.amadeus/dsh-home`、`amadeus` profile 和 `amadeus.service`。 由 [**@whyself**](https://github.com/whyself)
-
-<h2 id="en-changelog">English</h2>
 
 ## 1.2.0-rc.1 — 2026-10-02 (prerelease; updated 2026-10-04)
 
