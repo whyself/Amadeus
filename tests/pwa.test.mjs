@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { injectBrowserCompatibility } from '../packages/login/src/browser-compat.mjs';
 import { pwaManifest, pwaManifestSource, registerPwaRoutes, serviceWorkerSource } from '../packages/login/src/pwa.mjs';
 
@@ -19,6 +20,20 @@ test('service worker leaves private Amadeus routes on the network', () => {
   assert.match(serviceWorkerSource, /request\.mode === 'navigate'/);
   assert.match(serviceWorkerSource, /STATIC_DESTINATIONS/);
   assert.match(serviceWorkerSource, /cache\.put\(request/);
+});
+
+test('rebuilt RC1 activation deletes old assets while preserving unrelated caches', async () => {
+  const handlers = new Map(), deleted = [];
+  const current = /const CACHE_NAME = "([^"]+)"/.exec(serviceWorkerSource)[1];
+  let claimed = false, activation;
+  runInNewContext(serviceWorkerSource, {
+    self: { addEventListener: (type, handler) => handlers.set(type, handler), clients: { claim: () => { claimed = true; } } },
+    caches: { keys: async () => ['amadeus-pwa-1.2.0-rc.1', current, 'other-app'], delete: async key => deleted.push(key) },
+  });
+  handlers.get('activate')({ waitUntil: promise => { activation = promise; } });
+  await activation;
+  assert.deepEqual(deleted, ['amadeus-pwa-1.2.0-rc.1']);
+  assert.equal(claimed, true);
 });
 
 test('PWA routes serve the manifest, worker, and both icons', async () => {

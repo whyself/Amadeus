@@ -46,6 +46,16 @@ try {
   await page.getByRole('button', { name: '继续', exact: true }).click();
   await page.getByRole('button', { name: '稍后配置', exact: true }).click();
   const input = page.locator('[data-composer-input]').first();
+  await input.click();
+  const cdp = await context.newCDPSession(page);
+  for (const text of ['n', 'ni', 'nihao']) {
+    await cdp.send('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length });
+    assert.equal(await page.evaluate(() => window.getSelection().toString()), '', 'IME caret stays collapsed');
+  }
+  await cdp.send('Input.insertText', { text: '你好' });
+  await expect(input).toHaveText('你好');
+  await input.press('Control+a'); await input.press('Backspace');
+  console.log('PASS: Lexical IME composition and Chinese commit with the retained seed fix');
   await input.click(); await input.pressSequentially('kept draft');
   await expect(input).toHaveText('kept draft');
   console.log('PASS: native queue renders without the obsolete state.queue wrapper');

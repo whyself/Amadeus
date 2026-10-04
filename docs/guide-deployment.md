@@ -25,7 +25,7 @@ flowchart TD
 
 ### 版本说明
 
-当前预发布版是 **v1.2.0-rc.1**，最新正式版仍为 **v1.1.3**。下面示例使用当前预发布标签，包含 DSH `0.2.0-rc.2` 升级、Safari 兼容、注释出处链接、编辑器工作台恢复和原生文件树整合。DSH 依赖仍是预发布候选版；升级前备份配置、工作区与数据卷。
+当前预发布版是 **v1.2.0-rc.1**，最新正式版仍为 **v1.1.3**。RC1 于 2026-10-04 更新内核至 DSH `0.2.1-alpha.1`，采用原生 Web 自动化与上游修复，并恢复回答中的注释引用渲染和原文定位。DSH 依赖仍是 alpha 预发布版；升级前备份配置、工作区与数据卷。同名 RC1 标签已更新，已有仓库需执行下面的强制标签获取命令。
 
 当前部署固定使用 Node.js **24**、code-server **4.104.2**、LaTeX Workshop **10.9.0**。补丁针对这些版本，请先按文档安装，避免自行换成 code-server 或扩展的最新版本。
 
@@ -492,6 +492,7 @@ docker compose start
 保持原项目目录与 Compose 项目名，继续使用原配置、`workspace/` 和命名卷。`docker compose down` 保留卷，**`docker compose down -v` 会删除卷**。
 
 ~~~bash
+git fetch --force origin tag v1.2.0-rc.1
 git fetch --tags
 git switch --detach v1.2.0-rc.1
 docker compose up -d --build

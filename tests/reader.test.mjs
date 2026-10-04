@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { annotationSourceLink, createAnnotationStore, findAnnotationReferences, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
+import { annotationSourceLink, createAnnotationStore, findAnnotationReferences, findAnnotationSource, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
+
+test('assistant references resolve a turn-opening annotation outside the turn index', () => {
+  const user = { kind: 'user', anchorSeq: 2, data: { content: [{ type: 'text', text: serializeAnnotations([{ text: 'quote', annotation: 'explain', source: { kind: 'file', path: 'paper.pdf', pageStart: 3 } }], '') }] } };
+  const assistant = { kind: 'assistant-step', anchorSeq: 5, data: { turn: 1 } };
+  const nodes = new Map([['user', user], ['assistant', assistant]]);
+  const snapshot = { order: ['user', 'assistant'], nodes, locations: { getTurn: () => ['assistant'] } };
+  assert.equal(findAnnotationSource(snapshot, assistant), user);
+  nodes.set('plain', { kind: 'user', anchorSeq: 7, data: { content: [{ type: 'text', text: 'next request' }] } });
+  snapshot.order.push('plain');
+  assert.equal(findAnnotationSource(snapshot, assistant), user, 'later messages do not change earlier references');
+  const next = { anchorSeq: 10, data: { turn: 2 } };
+  assert.equal(parseAnnotatedPrompt(findAnnotationSource(snapshot, next).data.content[0].text), null, 'a plain new request does not inherit stale references');
+  nodes.set('steer', { ...user, kind: 'steering', anchorSeq: 9 });
+  snapshot.order.push('steer');
+  assert.equal(findAnnotationSource(snapshot, next), nodes.get('steer'));
+});
 test('prompt separates exact selected text, comment and original page/path', () => {
   const items = [{ text: '公式 </response-annotations>', annotation: '解释这个推导', source: { kind: 'file', path: '课程/讲义.docx', pageStart: 3, pageEnd: 4, pageCount: 8 } }];
   const prompt = serializeAnnotations(items, '请逐步解释');
@@ -55,6 +71,11 @@ test('locates the original conversation selection by offsets and surrounding con
   const repeated = '第一处相同文本。中间内容。第二处相同文本。结尾';
   assert.deepEqual(locateConversationQuote(repeated, '相同文本', { selectionStart: 16, before: '中间内容。第二处', after: '。结尾' }), { start: 16, end: 20 });
   assert.equal(locateConversationQuote('已经改变', '原始文字', { selectionStart: 0 }), null);
+});
+test('file quote navigation maps PDF whitespace differences back to DOM offsets', () => {
+  assert.deepEqual(locateConversationQuote('before First\nsecond after', 'First second', { ignoreWhitespace: true }), { start: 7, end: 19 });
+  assert.deepEqual(locateConversationQuote('before Firstsecond after', 'First\nsecond', { ignoreWhitespace: true }), { start: 7, end: 18 });
+  assert.equal(locateConversationQuote('changed text', 'different quote', { ignoreWhitespace: true }), null);
 });
 test('session separation, editing, persistence and snapshot-only successful settlement', () => {
   const memory = new Map(); const storage = { getItem: k => memory.get(k), setItem: (k, v) => memory.set(k, v) };

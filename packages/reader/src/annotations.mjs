@@ -33,6 +33,18 @@ export function parseAnnotatedPrompt(text) {
     return { annotations, prompt: text.slice(at + ENVELOPE_SEPARATOR.length) };
   } catch { return null; }
 }
+// Turn-opening user messages can precede turn/start and therefore do not appear
+// in locations.getTurn(). Read the ordered chat nodes by their event position.
+// A later plain user message replaces the annotation context as well.
+export function findAnnotationSource(snapshot, assistant) {
+  let latest;
+  for (const key of snapshot.order) {
+    const node = snapshot.nodes.get(key);
+    if (!node || !['user', 'steering'].includes(node.kind) || node.anchorSeq >= assistant.anchorSeq) continue;
+    if (!latest || node.anchorSeq > latest.anchorSeq) latest = node;
+  }
+  return latest;
+}
 export function linkAnnotationReferences(text, maximum = Number.POSITIVE_INFINITY) {
   const linked = number => Number(number) >= 1 && Number(number) <= maximum ? `[注释 ${Number(number)}](#amadeus-annotation-${Number(number)})` : null;
   return text
@@ -69,7 +81,23 @@ export function locateConversationQuote(text, quote, source = {}) {
     if (!best || candidate.context > best.context || (candidate.context === best.context && candidate.distance < best.distance)) best = candidate;
     at = text.indexOf(quote, at + Math.max(1, quote.length));
   }
-  return best && { start: best.start, end: best.end };
+  if (best) return { start: best.start, end: best.end };
+  if (!source.ignoreWhitespace) return null;
+  // PDF text spans and browser selection strings can disagree on inserted
+  // spaces/newlines. Preserve original offsets while matching visible text.
+  const offsets = [], characters = [];
+  for (let index = 0; index < text.length; index++) {
+    if (/\s/.test(text[index])) continue;
+    offsets.push(index); characters.push(text[index]);
+  }
+  const compactQuote = quote.replace(/\s/g, '');
+  if (!compactQuote) return null;
+  const position = offsets.findIndex(offset => offset >= expected);
+  const match = locateConversationQuote(characters.join(''), compactQuote, {
+    selectionStart: position < 0 ? offsets.length : position,
+    before: before.replace(/\s/g, ''), after: after.replace(/\s/g, ''),
+  });
+  return match && { start: offsets[match.start], end: offsets[match.end - 1] + 1 };
 }
 export function createAnnotationStore(storage) {
   const states = new Map(), listeners = new Set();

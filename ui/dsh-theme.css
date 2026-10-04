@@ -1,37 +1,18 @@
-/* DSH 0.1.6 theme tokens. Native Button, Modal and FileTypeIcon own their UI. */
-.amadeus-files,.amadeus-reader,.amadeus-annotations,.amadeus-sent,.amadeus-selection{font-family:var(--dsw-font-family);font-size:var(--dsh-content-font-size-secondary,13px);line-height:1.5;color:var(--dsw-alias-label-primary)}
-.amadeus-toolbar{box-sizing:border-box;height:38px;padding:0 6px 0 16px;gap:4px;border-bottom:.5px solid var(--dsw-alias-border-l3);font-size:12px;color:var(--dsw-alias-label-tertiary)}
+/* Native DSH previews, file tree and primitives own their UI. */
+::highlight(amadeus-annotation-source){background:rgba(255,205,60,.5)}
+.amadeus-files,.amadeus-annotations,.amadeus-sent,.amadeus-selection{font-family:var(--dsw-font-family);font-size:var(--dsh-content-font-size-secondary,13px);line-height:1.5;color:var(--dsw-alias-label-primary)}
 .amadeus-icon{width:28px;height:28px;padding:6px;border-radius:28px;color:var(--dsw-alias-label-secondary);transition:background-color .12s,color .12s}
-.amadeus-icon:hover,.amadeus-filename:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.amadeus-icon svg{width:16px;height:16px;flex:none}.amadeus-actions{gap:0}.amadeus-tree-scroll{padding:8px 0 8px 8px;scrollbar-gutter:stable}.amadeus-tree .amadeus-tree{padding-left:18px}
-.amadeus-filename{border-radius:10px;gap:6px;padding:5px 10px;min-height:30px}.amadeus-filename svg{flex:none}.amadeus-row{padding-right:6px}.amadeus-row>.amadeus-actions{opacity:.45}.amadeus-row:hover>.amadeus-actions,.amadeus-row:focus-within>.amadeus-actions{opacity:1}
+.amadeus-icon:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.amadeus-icon svg{width:16px;height:16px;flex:none}.amadeus-actions{gap:0}
 .amadeus-modal{width:min(440px,100%);border-radius:18px}.amadeus-modal-path{color:var(--dsw-alias-label-tertiary);font-size:13px;overflow-wrap:anywhere}.amadeus-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
 .amadeus-notice{font:var(--dsw-font-xs-13);color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border-radius:12px;margin:8px;padding:10px 12px;align-items:center}.amadeus-notice button{border:0;background:transparent;color:var(--dsw-alias-state-business-primary);font:inherit;cursor:pointer;white-space:nowrap}
 .amadeus-error{font:var(--dsw-font-xs-13);color:var(--dsw-alias-state-error-primary);padding:10px 14px}.amadeus-muted{opacity:1;color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
-.amadeus-reader .amadeus-toolbar input{box-sizing:border-box;height:24px;border:.5px solid var(--dsw-alias-border-l4);border-radius:6px;color:var(--dsw-alias-label-primary);font:inherit;text-align:center;outline:none}.amadeus-reader .amadeus-toolbar label{display:flex;align-items:center;gap:5px}.amadeus-reader .amadeus-toolbar input:focus{border-color:var(--dsw-alias-state-business-primary)}
-.amadeus-pdf-scroll{background:var(--dsw-alias-bg-layer-1);padding:16px 16px 0}.amadeus-pdf-page{box-shadow:var(--dsw-elevation-panel);margin:0 auto 8px}.amadeus-page-label{color:var(--dsw-alias-label-tertiary);opacity:1;font:var(--dsw-font-xxs-12);margin:0 auto 16px}.amadeus-page-label:last-child{margin-bottom:0}
-.amadeus-text{font-family:var(--ds-font-family-code);font-size:var(--dsh-content-font-size-secondary,13px);line-height:1.7;padding:14px 16px}
-.amadeus-annotations{gap:10px;padding:8px 12px;max-height:190px;flex-wrap:nowrap;align-items:flex-start;overflow:auto hidden;scrollbar-width:thin}.amadeus-annotations:empty{display:none}
-.amadeus-annotation{box-sizing:border-box;position:relative;flex:0 0 238px;max-width:280px;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:16px;background:var(--dsw-alias-bg-base)}
-.amadeus-annotation strong{font-size:12px;line-height:18px;font-weight:500}.amadeus-annotation small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:11px;opacity:1;padding-right:6px}
-.amadeus-annotation blockquote{border-left:2px solid var(--dsw-alias-border-l4);margin:7px 0;padding-left:8px;max-height:36px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);opacity:1;overflow:auto}
-.amadeus-annotation textarea,.amadeus-selection textarea{font-family:var(--dsw-font-family);font-size:13px;line-height:20px;min-height:44px;max-height:90px;resize:none;border:.5px solid var(--dsw-alias-border-l4);border-radius:10px;padding:7px 9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);outline:none}
-.amadeus-annotation textarea:focus,.amadeus-selection textarea:focus{border-color:var(--dsw-alias-border-l3);box-shadow:0 0 0 1px var(--dsw-alias-border-l3)}.amadeus-annotation textarea::placeholder,.amadeus-selection textarea::placeholder{color:var(--dsw-alias-label-caption)}
-.amadeus-annotation .amadeus-remove{position:absolute;right:7px;top:6px;padding:0;width:22px;height:22px;border:0;border-radius:50%;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:18px;line-height:22px}.amadeus-annotation .amadeus-remove:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.amadeus-annotations .amadeus-send-notes{flex:none;align-self:center;white-space:nowrap}
+.amadeus-annotations{gap:10px;padding:8px 12px;max-height:190px;flex-wrap:nowrap;align-items:flex-start;overflow:auto hidden;scrollbar-width:thin}.amadeus-annotations:empty{display:none}.amadeus-selection textarea{font-family:var(--dsw-font-family);font-size:13px;line-height:20px;min-height:44px;max-height:90px;resize:none;border:.5px solid var(--dsw-alias-border-l4);border-radius:10px;padding:7px 9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);outline:none}.amadeus-selection textarea:focus{border-color:var(--dsw-alias-border-l3);box-shadow:0 0 0 1px var(--dsw-alias-border-l3)}.amadeus-selection textarea::placeholder{color:var(--dsw-alias-label-caption)}
 .amadeus-annotations{padding:6px 12px;gap:8px;max-height:82px}
-.amadeus-compact{flex:0 0 196px;width:196px;height:64px;max-width:196px;padding:0;border-radius:14px}
-.amadeus-annotation .amadeus-annotation-body{display:flex;flex-direction:column;gap:1px;box-sizing:border-box;width:100%;height:100%;padding:6px 12px;border:0;border-radius:14px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
-.amadeus-annotation-body:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.amadeus-annotation-body>span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:16px;font-size:12px}
-.amadeus-annotation-title{padding-right:12px;box-sizing:border-box;font-weight:500;color:var(--dsw-alias-label-secondary)}
-.amadeus-quote-preview{color:var(--dsw-alias-label-tertiary)}.amadeus-comment-preview{color:var(--dsw-alias-label-primary)}
-.amadeus-compact .amadeus-remove{width:18px;height:18px;line-height:16px;font-size:16px;top:4px;right:4px;opacity:0;background:var(--dsw-alias-button-contrast-fill);color:var(--dsw-alias-label-primary-inverted)}
-.amadeus-compact:hover .amadeus-remove,.amadeus-compact:focus-within .amadeus-remove{opacity:1}
 .amadeus-annotation-editor small{color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
 .amadeus-annotation-editor blockquote{max-height:180px;overflow:auto;white-space:pre-wrap;margin:12px 0;padding-left:12px;border-left:2px solid var(--dsw-alias-border-l4);color:var(--dsw-alias-label-secondary)}
 .amadeus-annotation-editor textarea{box-sizing:border-box;width:100%;min-height:90px;max-height:220px;resize:vertical;border:.5px solid var(--dsw-alias-border-l4);border-radius:12px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:var(--dsw-font-s-14);padding:10px 12px;outline:none}
-@media(pointer:coarse){.amadeus-compact .amadeus-remove{opacity:1}}
+
 .amadeus-annotation-summary{max-height:none;min-height:0;height:auto;overflow:visible;padding:0 12px 4px;display:flex}
 .amadeus-annotation-summary:empty{display:none}
 .amadeus-summary-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4);border-radius:9px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font:var(--dsw-font-xs-13);cursor:pointer}
@@ -70,16 +51,14 @@
 .amadeus-selection .amadeus-selection-confirm svg{display:block}
 .amadeus-selection.amadeus-selection-editor [role=alert]{flex-basis:100%;margin:0 7px 2px;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px}
 /* Let native buttons retain native fill, padding, radii and typography. */
-.amadeus-selection button:not(.amadeus-icon),.amadeus-annotations button:not(.amadeus-remove){font-family:var(--dsw-font-family)}
-:is(.amadeus-files,.amadeus-reader,.amadeus-annotations,.amadeus-selection) :is(button,a):focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:2px}
-@media(pointer:coarse){.amadeus-row>.amadeus-actions{opacity:1}.amadeus-icon{min-width:32px;min-height:32px}}
+.amadeus-selection button:not(.amadeus-icon){font-family:var(--dsw-font-family)}
+:is(.amadeus-files,.amadeus-annotations,.amadeus-selection) :is(button,a):focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:2px}
+@media(pointer:coarse){.amadeus-icon{min-width:32px;min-height:32px}}
 @media(prefers-reduced-motion:reduce){.amadeus-icon{transition:none}}
 .amadeus-files{--amadeus-file-action-size:28px}
 .amadeus-files .amadeus-file-actions{display:grid;grid-template-columns:repeat(3,var(--amadeus-file-action-size));align-items:center;gap:4px;flex:none}
 .amadeus-files .amadeus-icon,.amadeus-files .amadeus-action-placeholder{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:var(--amadeus-file-action-size);height:var(--amadeus-file-action-size);min-width:var(--amadeus-file-action-size);min-height:var(--amadeus-file-action-size);padding:6px;line-height:1;vertical-align:middle;align-self:center}
 .amadeus-files .amadeus-icon svg{display:block;width:16px;height:16px;flex:none}
-.amadeus-files>.amadeus-toolbar{padding-right:calc(8px + var(--amadeus-file-scrollbar,0px))}
-.amadeus-files .amadeus-row{padding-right:8px}
 .amadeus-file-remove:hover:not(:disabled){color:var(--dsw-alias-state-error-primary)}
 .amadeus-delete-path{font-weight:500;overflow-wrap:anywhere}
 .amadeus-modal .amadeus-confirm-delete{background:var(--dsw-alias-state-error-primary);color:#fff}

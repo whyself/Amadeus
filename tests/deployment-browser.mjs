@@ -51,11 +51,12 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), url: message.location().url, openingEditor }); });
   await page.goto(origin);
-  // Docker Desktop's cold filesystem/RPC initialization can outlast the HTTP
-  // listener. Wait for the selected workspace before persisting onboarding.
-  await expect(page.locator('[aria-label="选择工作区"]').first()).toContainText('workspace', { timeout: 60000 });
+  // Wait for workspace membership before onboarding; the new-session picker
+  // does not necessarily select a workspace until a session is opened.
+  await expect(page.getByText('workspace', { exact: true }).first()).toBeVisible({ timeout: 60000 });
   await page.getByRole('button', { name: '继续', exact: true }).click();
-  await page.getByRole('button', { name: '稍后配置', exact: true }).click();
+  // First session persistence can exceed 30s on a cold Docker Desktop disk.
+  await page.getByRole('button', { name: '稍后配置', exact: true }).click({ timeout: 120000 });
   const input = page.locator('[data-composer-input]').first();
   await input.click();
   const cdp = await context.newCDPSession(page);
@@ -96,7 +97,9 @@ try {
   console.log('PASS: native PDF text layer, zoom and upstream theme selection colors');
   await page.getByRole('tab', { name: /文件/ }).first().click();
   await tree.getByRole('button', { name: 'lecture.docx', exact: true }).click();
-  await page.locator('[data-pdf-page="1"] [data-pdf-text] .textLayer span').first().waitFor({ timeout: 60000 });
+  // Include the native conversion deadline plus file-read/font/PDF startup;
+  // success still requires the rendered selectable text layer.
+  await page.locator('[data-pdf-page="1"] [data-pdf-text] .textLayer span').first().waitFor({ timeout: 120000 });
   console.log('PASS: actual LibreOffice document conversion and native text layer');
   await page.getByRole('tab', { name: /文件/ }).first().click();
   openingEditor = true;
@@ -126,6 +129,9 @@ try {
   assert.deepEqual(errors, []);
   const unexpected = consoleErrors.filter(error => {
     const pathname = new URL(error.url, origin).pathname;
+    // The headless Debian image has no system file-manager icon. DSH's native
+    // open-in-app menu requests it and renders its fallback when it is absent.
+    if (pathname === '/open-in-app/icon/filemanager' && /status of 404/.test(error.text)) return false;
     if (error.openingEditor && pathname.startsWith('/amadeus/code/') && error.text.includes('[DEP0040] DeprecationWarning: The `punycode` module is deprecated.')) return false;
     if (!error.openingEditor || !/^Failed to load resource:/.test(error.text)) return true;
     // Bridge polling starts before VS Code has an active document. Its 503

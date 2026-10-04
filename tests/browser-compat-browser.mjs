@@ -4,11 +4,13 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { chromium, webkit } from 'playwright';
+import { chromium, webkit } from '@playwright/test';
 import { injectBrowserCompatibility } from '../packages/login/src/browser-compat.mjs';
 import { pwaManifestSource, serviceWorkerSource } from '../packages/login/src/pwa.mjs';
 
 const pdfClient = await readFile(path.resolve(import.meta.dirname, '../node_modules/@deepseek-ai/dsh-client-ui-sidebar-documentpreview/lib/client.pdf.js'), 'utf8');
+const valuesClient = await readFile(path.resolve(import.meta.dirname, '../node_modules/@deepseek-ai/dsh-util-values/lib/index.js'), 'utf8');
+const valuesRuntime = valuesClient.replace(/export \{[^}]+\};?/g, '');
 // The bundler emits a JS string literal (including \x escapes), not JSON.
 const pdfSource = runInNewContext(/var _dsh_pdf_worker_default = ("(?:[^"\\]|\\.)*");/.exec(pdfClient)[1]);
 assert.ok(pdfSource.includes('WorkerMessageHandler') && pdfSource.includes('pdfjs'));
@@ -40,6 +42,15 @@ try {
         }
       }, { forceFallback: engine === 'webkit' });
       await page.goto(url);
+      assert.equal(await page.evaluate(source => {
+        const iframe = document.createElement('iframe'); document.body.append(iframe);
+        try {
+          const validate = new Function(source + '\nreturn isJsonValue;')();
+          const foreign = iframe.contentWindow;
+          return validate(new foreign.Object()) && validate(new foreign.Array(1, 2))
+            && !validate(new (class Custom {})());
+        } finally { iframe.remove(); }
+      }, valuesRuntime), true, 'unmodified upstream constructor checks accept native cross-realm values');
       const state = await page.evaluate(() => ({
         blobPreserved: Blob === nativeBlob,
         promisePreserved: !nativeWithResolvers || Promise.withResolvers === nativeWithResolvers,

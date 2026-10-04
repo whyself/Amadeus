@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
-import { createAnnotationStore, findAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from './annotations.mjs';
+import { createAnnotationStore, findAnnotationReferences, findAnnotationSource, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from './annotations.mjs';
 import styles from '../../../ui/amadeus.css';
 import themeStyles from '../../../ui/dsh-theme.css';
 import { reconcileAnnotationDraft, stripAnnotationDraftMarker } from './reader-state.mjs';
@@ -160,18 +160,9 @@ function decorateAnnotationReferences(root, maximum) {
     textNode.replaceWith(fragment);
   }
 }
-function AssistantWithAnnotationLinks({ Native, openAnnotation, ...props }) {
+export function AssistantWithAnnotationLinks({ Native, openAnnotation, ...props }) {
   const language = useAmadeusLocale();
-  const sourceNode = props.useChat(snapshot => {
-    const keys = snapshot.locations.getTurn(props.node.data.turn);
-    let matched;
-    for (const key of keys) {
-      const node = snapshot.nodes.get(key);
-      if (!node || node.anchorSeq >= props.node.anchorSeq) break;
-      if (annotationEnvelope(node)) matched = node;
-    }
-    return matched;
-  });
+  const sourceNode = props.useChat(snapshot => findAnnotationSource(snapshot, props.node));
   const envelope = useMemo(() => annotationEnvelope(sourceNode), [sourceNode]);
   const annotations = envelope?.annotations ?? [];
   const root = useRef();
@@ -210,13 +201,16 @@ function AssistantWithAnnotationLinks({ Native, openAnnotation, ...props }) {
 }
 let conversationHighlightTimer;
 function conversationTextRange(anchor, quote, source) {
-  const doc = anchor.ownerDocument;
-  const walker = doc.createTreeWalker(anchor, doc.defaultView.NodeFilter.SHOW_TEXT, {
-    acceptNode(node) { return node.parentElement?.closest('script,style,.amadeus-annotation-popover') ? doc.defaultView.NodeFilter.FILTER_REJECT : doc.defaultView.NodeFilter.FILTER_ACCEPT; },
-  });
+  const anchors = Array.isArray(anchor) ? anchor : [anchor];
+  const doc = anchors[0].ownerDocument;
   const nodes = [];
   let text = '';
-  while (walker.nextNode()) { nodes.push({ node: walker.currentNode, start: text.length }); text += walker.currentNode.data; }
+  for (const scope of anchors) {
+    const walker = doc.createTreeWalker(scope, doc.defaultView.NodeFilter.SHOW_TEXT, {
+      acceptNode(node) { return node.parentElement?.closest('script,style,.amadeus-annotation-popover') ? doc.defaultView.NodeFilter.FILTER_REJECT : doc.defaultView.NodeFilter.FILTER_ACCEPT; },
+    });
+    while (walker.nextNode()) { nodes.push({ node: walker.currentNode, start: text.length }); text += walker.currentNode.data; }
+  }
   const location = locateConversationQuote(text, quote, source);
   if (!location) return null;
   const boundary = (offset, end) => {
@@ -254,10 +248,50 @@ function focusConversationSource(source, quote) {
   const range = conversationTextRange(anchor, quote, source);
   if (!range) { anchor.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   scrollConversationRange(range);
+  highlightAnnotationRange(range);
+}
+function highlightAnnotationRange(range) {
   if (!CSS.highlights || typeof Highlight === 'undefined') return;
   clearTimeout(conversationHighlightTimer);
-  CSS.highlights.set('amadeus-annotation-source', new Highlight(range));
-  conversationHighlightTimer = setTimeout(() => CSS.highlights.delete('amadeus-annotation-source'), 2200);
+  const highlight = new Highlight(range);
+  CSS.highlights.set('amadeus-annotation-source', highlight);
+  const clear = () => {
+    if (CSS.highlights.get('amadeus-annotation-source') !== highlight) return;
+    clearTimeout(conversationHighlightTimer);
+    CSS.highlights.delete('amadeus-annotation-source');
+  };
+  conversationHighlightTimer = setTimeout(clear, 2200);
+  return clear;
+}
+export function watchFileAnnotation(host, focus) {
+  let observer, frame, clearHighlight, requestedPage;
+  const reveal = () => {
+    const first = Number.isSafeInteger(focus.page) && focus.page > 0 ? focus.page : undefined;
+    const last = Number.isSafeInteger(focus.pageEnd) && focus.pageEnd >= first ? focus.pageEnd : first;
+    const pages = first === undefined ? [host] : [...host.querySelectorAll('[data-pdf-page]')]
+      .filter(page => Number(page.dataset.pdfPage) >= first && Number(page.dataset.pdfPage) <= last);
+    if (!pages.length || (first !== undefined && pages.length !== last - first + 1)) return;
+    // Native PDF rendering starts only when a placeholder enters the viewport.
+    // Visit unloaded pages before waiting for their text, including range ends.
+    const pending = first === undefined ? undefined : pages.find(page => page.querySelector('[data-document-zoom-surface][hidden]'));
+    if (pending) {
+      if (requestedPage !== pending) { requestedPage = pending; pending.scrollIntoView({ block: 'center' }); }
+      return;
+    }
+    const scopes = pages.map(page => page.querySelector('[data-pdf-text]') ?? page);
+    const range = conversationTextRange(scopes, focus.text, { ignoreWhitespace: true });
+    if (!range) return;
+    observer?.disconnect();
+    frame = requestAnimationFrame(() => {
+      const start = range.cloneRange(); start.collapse(true);
+      scrollConversationRange(start);
+      clearHighlight = highlightAnnotationRange(range);
+    });
+  };
+  observer = new MutationObserver(reveal);
+  observer.observe(host, { childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'], subtree: true });
+  reveal();
+  return () => { observer.disconnect(); cancelAnimationFrame(frame); clearHighlight?.(); };
 }
 function sessionFileAddress(sessionId, path) {
   return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${path.split('/').map(encodeURIComponent).join('/')}`;
@@ -416,13 +450,12 @@ export function apply(ctx) {
     if (props.sessionId) activeSession.id = props.sessionId;
     return <Component {...props} />;
   };
-  const openAnnotation = annotation => {
+  const openAnnotation = (annotation, sessionId = activeSession.id) => {
     const source = annotation.source;
     if (source?.kind === 'conversation') { focusConversationSource(source, annotation.text); return; }
     if (source?.kind !== 'file') return;
-    const sessionId = activeSession.id;
     if (!sessionId) return;
-    ctx.sidebarRight.openResource(sessionFileAddress(sessionId, source.path), { params: { amadeusAnnotation: { page: source.pageStart, text: annotation.text } } });
+    ctx.sidebarRight.openResource(sessionFileAddress(sessionId, source.path), { params: { amadeusAnnotation: { page: source.pageStart, pageEnd: source.pageEnd, text: annotation.text, requestId: crypto.randomUUID() } } });
   };
   ctx.effect(installBrandFavicon);
   ctx.effect(() => ctx.slots.inject('sidebar.brand.mark', () => replaceBrandSlot(ctx, 'sidebar.brand.mark', AmadeusBrandMark)));
@@ -445,10 +478,9 @@ export function apply(ctx) {
           const host = useRef();
           const focus = props.useTabInfo?.().tab.navigation.params?.amadeusAnnotation;
           useEffect(() => {
-            if (!focus?.page || !host.current) return;
-            const frame = requestAnimationFrame(() => host.current?.querySelector(`[data-pdf-page="${focus.page}"]`)?.scrollIntoView({ block: 'start' }));
-            return () => cancelAnimationFrame(frame);
-          }, [focus?.page, focus?.text]);
+            if (!focus?.text || !host.current) return;
+            return watchFileAnnotation(host.current, focus);
+          }, [focus?.page, focus?.pageEnd, focus?.text, focus?.requestId]);
           let path;
           try { path = sourcePath(props.resourceAddress); } catch { return <Native {...props} />; }
           return <div ref={host} className="amadeus-source-document" style={{ display: 'contents' }} data-amadeus-path={path} data-amadeus-format={path.split('.').pop().toLowerCase()} data-amadeus-session={props.sessionId}><Native {...props} /></div>;
@@ -473,7 +505,7 @@ export function apply(ctx) {
         installed.add(kind);
         const Native = entry.component;
         if (kind === 'assistant-step') {
-          const WrappedAssistant = props => { if (props.sessionId) activeSession.id = props.sessionId; return <AssistantWithAnnotationLinks {...props} Native={Native} openAnnotation={openAnnotation} />; };
+          const WrappedAssistant = props => { if (props.sessionId) activeSession.id = props.sessionId; return <AssistantWithAnnotationLinks {...props} Native={Native} openAnnotation={annotation => openAnnotation(annotation, props.sessionId)} />; };
           disposers.push(ctx.slots.register({ ...entry.options, name: 'conversation.chat.node', key: kind, locale: entry.locale, priority: -100, registrant: 'amadeus-annotated-assistant' }, WrappedAssistant));
           continue;
         }

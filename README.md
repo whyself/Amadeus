@@ -2,9 +2,9 @@
 
 Amadeus 是面向单用户的 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 工作台扩展。它在 DSH 原生对话和文件侧栏中加入项目文件管理、内嵌 code-server、LaTeX 编译，以及可定位原文的选区注释。
 
-**当前版本：v1.2.0-rc.1（预发布候选版）。** 当前代码固定依赖 DSH `0.2.0-rc.2`（预发布候选版）、code-server `4.104.2` 和 LaTeX Workshop `10.9.0`。推荐用 Docker Compose 部署；宿主机无需单独安装 Node.js、code-server 或 TeX Live。
+**当前版本：v1.2.0-rc.1（预发布候选版）。** 当前代码固定依赖 DSH `0.2.1-alpha.1`（alpha 预发布版）、code-server `4.104.2` 和 LaTeX Workshop `10.9.0`。推荐用 Docker Compose 部署；宿主机无需单独安装 Node.js、code-server 或 TeX Live。
 
-第一次安装请看 [部署与连接教程](docs/guide-deployment.md)：先选择 Windows Docker、WSL Ubuntu 或远端 Linux 部署服务，再选择本机、Tailscale 私有 HTTPS 或公网域名访问。v1.2.0-rc.1 包含 DSH 升级、Safari 兼容、注释出处链接和编辑器工作台恢复改进。
+第一次安装请看 [部署与连接教程](docs/guide-deployment.md)：先选择 Windows Docker、WSL Ubuntu 或远端 Linux 部署服务，再选择本机、Tailscale 私有 HTTPS 或公网域名访问。更新后的 v1.2.0-rc.1 包含 DSH 0.2.1 升级、原生 Web 自动化、Markdown 元数据预览、注释引用渲染与定位修复，以及 Safari 和编辑器兼容改进。
 
 ## 能做什么
 
@@ -16,6 +16,7 @@ Amadeus 是面向单用户的 [DeepSeek Harness（DSH）](https://github.com/dee
 | 选区注释 | 选中对话、原生文档或编辑器文本，填写可选评论后点蓝色对勾；回答里的注释引用可定位原文 |
 | 工作区 | DSH 原生文件树负责浏览与自动刷新；文件旁的按钮提供上传、ZIP 下载、重名处理和删除确认 |
 | 网页浏览器 | 在右侧侧栏打开隔离的 HTTP(S) 网页，与当前工作区并排浏览 |
+| 自动化任务 | 使用 DSH 原生 Web 自动化；标准、创造和 PTC 模式提供提醒工具，极简模式和子代理不提供 |
 | 外观 | DSH 与编辑器可分别选择浅色、深色或跟随系统；侧栏可收起中间对话 |
 
 ## Docker Compose 部署
@@ -81,6 +82,7 @@ docker compose up -d
 升级前备份这三处数据。`docker compose down` 会保留命名卷；升级时沿用原来的 `amadeus.local.yml`、`workspace/` 和卷，然后执行：
 
 ~~~bash
+git fetch --force origin tag v1.2.0-rc.1
 git fetch --tags
 git switch --detach v1.2.0-rc.1
 docker compose up -d --build
@@ -130,6 +132,7 @@ npm test
 npm run build
 npm run test:editor-browser
 npm run test:files-browser
+npm run test:annotations-browser
 npm run test:browser-compat
 npm run pack:plugins
 ~~~
