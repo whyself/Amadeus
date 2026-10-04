@@ -1,5 +1,9 @@
 # 贡献者与修改来源
 
+## [@whyself](https://github.com/whyself)
+
+Amadeus 项目维护者，负责工作台核心实现、DSH 集成与升级、四个插件、兼容修复、测试、部署和发布维护。
+
 ## YeJingchen · [@YJC18368291437-ai](https://github.com/YJC18368291437-ai)
 
 感谢 YeJingchen 在 [Amadeus fork](https://github.com/YJC18368291437-ai/Amadeus) 中提供的兼容修复、编辑器体验改进和部署文档。本仓库于 2026-10-02 按维护者审批范围选择并调整了部分实现；以下记录只对应实际采用的功能，不表示整体合并 fork。
