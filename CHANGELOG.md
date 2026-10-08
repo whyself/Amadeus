@@ -1,24 +1,67 @@
 # 更新日志 / Changelog
 
-## 未发布 — 2026-10-08
+## 1.2.0 — 2026-10-08
 
-- 接入 DSH 官方 browser use 的会话连接适配，新增每对话独立的服务端 Chromium 和认证画面流。
-- 新增只读“AI 浏览器”面板：自动展示 AI 的当前页面，支持收起、重连及后台对话隔离；原生 iframe“浏览器”继续供用户独立操作。
-- 保存每对话 Cookie 和最近 URL，修复启动空白页、进程退出和关闭流程覆盖恢复信息的问题。
-- 新增真实浏览器、崩溃重试、同 URL 页面身份、只读 API 及真实 DSH 侧栏回归。
+### 新增功能
 
-- 注释出处跳转通过原生阅读位置控制器平滑滚动，保存语义位置并稳定高亮；用户滚动可立即取消动画，包括首帧之前的操作。
-- 注释评论输入框支持点击页面、编辑器或 PDF 空白区域取消；取消后不会被旧选区重新打开，直接拖选新文字也能正常添加注释。
-- 编辑器 PDF 的注释入口贴近可见选区焦点显示，转换嵌套 iframe 坐标并保留缩放与边框偏移；支持直接打开 PDF 后用鼠标选择文字。
-- 注释详情弹层改为页面顶层定位，跟随引用、滚动与侧栏移动，适应可视区域大小并支持键盘操作。
-- 带注释请求从发送中到已发送使用一致的注释卡片；只有注释时不再先出现普通消息气泡。发送开始清理旧选区，防止注释输入框被过期选区事件重新打开。
-- 原生 Markdown 注释引用由 React 渲染，避免直接替换文字节点导致后续内容更新异常。
-- 修复回答中 `<u>` 被显示为原文的问题，并支持无属性的下划线、上标、下标和换行；同步修补实际加载的前端渲染器并更新资源 URL。
-- 注释引用改为蓝色无框，浅色与深色主题使用独立的正文、悬停和焦点颜色。
-- 支持 code-server 内 LaTeX Workshop PDF 文字层选区注释，保留 PDF 路径和跨页页码；避免旧代码选区覆盖 PDF 选区，并清理已隐藏或移除的 PDF 标签选区。
-- 注释包装保留原生聊天插槽的注入、选择器与存储绑定，修复新版 DSH 中丢失 `usePresentation` 的渲染错误。
-- 插件构建使用 DSH 提供的 `react-dom`，避免重复打包导致的 Portal 渲染异常。
-- 带注释请求的发送临时气泡和处理中追加消息在首次渲染前显示注释摘要，避免闪现内置说明与 JSON；发送给模型的注释信息保持完整。
+- 新增只读 AI 浏览器：每个普通对话使用独立的服务端 Chromium，右侧自动展示 AI 实际操作的页面；原生 iframe 浏览器继续供用户独立操作。画面通过已有认证 WebSocket 传输，无需额外公开 CDP 端口。 由 [**@whyself**](https://github.com/whyself)
+- 支持 code-server 内 LaTeX Workshop PDF 文字层选区注释，保留实际 PDF 路径及跨页页码，注释入口贴近可见选区显示。 由 [**@whyself**](https://github.com/whyself)
+- 工作区文件浏览、自然排序、目录展开、自动刷新和预览导航使用 DSH 原生文件树，保留上传、ZIP 下载、删除确认和编辑入口。 由 [**@whyself**](https://github.com/whyself)
+
+### 问题修复
+
+- 修复注释请求在发送中、追加消息和已发送状态之间闪现内置说明或 JSON 的问题；注释摘要保持一致，完整原文及评论仍发送给模型。 由 [**@whyself**](https://github.com/whyself)
+- 修复 Markdown 注释引用在后续更新时破坏文字节点的问题；引用由 React 渲染，支持平滑返回出处、语义阅读位置保存、稳定高亮及用户滚动中断。 由 [**@whyself**](https://github.com/whyself)
+- 修复评论输入框取消后被旧选区再次打开、旧代码选区覆盖 PDF 选区，以及已隐藏 PDF 标签遗留选区的问题；注释详情弹层可随页面和侧栏移动。 由 [**@whyself**](https://github.com/whyself)
+- 修复回答中下划线标签显示为原文的问题，支持无属性的 `<u>`、`<sub>`、`<sup>` 和 `<br>`；代码块与不支持的 HTML 保留原文。 由 [**@whyself**](https://github.com/whyself)
+- 修复 AI 浏览器在启动、关闭和崩溃时覆盖最近 URL，以及重连失败后无法再次重试的问题；使用真实页面 targetId 区分相同 URL 的页面。 由 [**@whyself**](https://github.com/whyself)
+- 修复跳转时页面标题被网址替代的问题，并显示网站图标；图标通过受控浏览器会话读取，支持需要登录状态的页面。 由 [**@whyself**](https://github.com/whyself)
+
+### 体验优化
+
+- AI 浏览器每轮首次使用时自动打开；本轮手动收起后保持收起，后台对话不会抢当前侧栏。隐藏只停止画面发送，AI 继续运行。界面在地址前显示页面标题与图标，去除重复标题行和说明小字。 由 [**@whyself**](https://github.com/whyself)
+- 注释引用使用适配浅色、深色主题的蓝色无框样式；评论支持点击对话、编辑器或 PDF 空白区域取消及直接重新选取。 由 [**@whyself**](https://github.com/whyself)
+- 插件共用 DSH 提供的 React/React DOM，避免 Portal 和原生聊天插槽绑定异常；Docker 使用 UTF-8 环境。 由 [**@whyself**](https://github.com/whyself)
+
+### 其他变更
+
+- Amadeus、Login、Files、Reader、Editor、Browser 和 PWA 统一为 `1.2.0`；Release 提供五个插件包及 `SHA256SUMS`。 由 [**@whyself**](https://github.com/whyself)
+- DSH/WebServer 仍固定为 `0.2.1-alpha.1`，code-server 为 `4.104.2`，LaTeX Workshop 为 `10.9.0`。DSH 是上游 alpha 预发布依赖；Amadeus 本次为正式 Release。AI 浏览器复用官方会话资源和 MCP 客户端，并以保留 MIT 声明的源码适配扩展连接与重连。 由 [**@whyself**](https://github.com/whyself)
+- 配置改用 `browserUse`；旧 `playwrightMcp.enabled`、`headless`、`timeoutMs` 及默认 Chromium/isolated 设置可迁移，旧自定义命令、参数、其他浏览器和 idle timeout 等选项会给出迁移错误。浏览器安装解析到官方插件自己的固定运行时。 由 [**@whyself**](https://github.com/whyself)
+- 升级前保存编辑器内容并备份配置、工作区及数据卷。沿用同一 Compose 项目和数据卷，获取并切换 `v1.2.0` 后运行 `docker compose up -d --build`，随后刷新页面。浏览器 Cookie 按对话保存，页面内存和未提交表单不随重启恢复。 由 [**@whyself**](https://github.com/whyself)
+
+部署教程：[指南](https://github.com/whyself/Amadeus/blob/v1.2.0/docs/guide-deployment.md)。项目贡献者：[CONTRIBUTORS.md](https://github.com/whyself/Amadeus/blob/v1.2.0/CONTRIBUTORS.md)。内核变更：[DSH v0.2.1-alpha.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.1-alpha.1)。
+
+### New Features
+
+- Add a read-only AI Browser: each regular conversation owns a server-side Chromium, and the sidebar shows the page AI actually controls. Keep the native iframe browser independently interactive. Stream frames through authenticated WebSockets without publishing CDP ports. by [**@whyself**](https://github.com/whyself)
+- Add annotations from LaTeX Workshop PDF text selections inside code-server, preserving the real PDF path and cross-page provenance and placing the annotation action near the visible selection. by [**@whyself**](https://github.com/whyself)
+- Use the DSH native workspace tree for browsing, natural sorting, folder expansion, refresh and preview navigation while retaining upload, ZIP download, confirmed deletion and editing. by [**@whyself**](https://github.com/whyself)
+
+### Bug Fixes
+
+- Prevent internal annotation instructions or JSON from flashing during pending, steering and sent-message transitions. Keep one annotation summary while sending the full source text and comments to the model. by [**@whyself**](https://github.com/whyself)
+- Render Markdown annotation references through React so later updates preserve text nodes. Support smooth source navigation, semantic reading-position persistence, stable highlighting and interruption by user scrolling. by [**@whyself**](https://github.com/whyself)
+- Stop stale selections from reopening canceled comment editors, prevent code selections from replacing PDF selections, clear hidden PDF selections, and keep annotation details aligned during scrolling and sidebar movement. by [**@whyself**](https://github.com/whyself)
+- Render attribute-free `<u>`, `<sub>`, `<sup>` and `<br>` inline formatting correctly while preserving code blocks and unsupported HTML as literal text. by [**@whyself**](https://github.com/whyself)
+- Preserve recent browser URLs through startup, shutdown and crashes, keep failed reconnections retryable, and use actual target IDs to distinguish pages with identical URLs. by [**@whyself**](https://github.com/whyself)
+- Keep page titles separate from URLs during navigation and show favicons fetched through the controlled browser session, including authenticated pages. by [**@whyself**](https://github.com/whyself)
+
+### Improvements
+
+- Reveal the AI Browser once per turn, respect manual collapse and keep background conversations from taking over the current sidebar. Hiding stops frame transmission while AI continues. Show the page title and favicon before the address and remove duplicate rows and explanatory captions. by [**@whyself**](https://github.com/whyself)
+- Use borderless blue annotation references in light and dark themes. Allow canceling comments from blank conversation, editor or PDF areas and immediately selecting another passage. by [**@whyself**](https://github.com/whyself)
+- Share DSH's React and React DOM to preserve Portal rendering and native chat-slot bindings; use UTF-8 in Docker. by [**@whyself**](https://github.com/whyself)
+
+### Chores
+
+- Set Amadeus, Login, Files, Reader, Editor, Browser and PWA to `1.2.0`; ship five plugin archives and `SHA256SUMS`. by [**@whyself**](https://github.com/whyself)
+- Keep DSH/WebServer pinned to `0.2.1-alpha.1`, code-server to `4.104.2` and LaTeX Workshop to `10.9.0`. DSH remains an upstream alpha dependency; this Amadeus release is stable. Extend official browser connection lifecycle with a checked-in adaptation that retains its MIT attribution. by [**@whyself**](https://github.com/whyself)
+- Use `browserUse` configuration. Migrate the supported legacy enable, headless, timeout and default Chromium/isolated settings; report obsolete custom commands, arguments, browsers and idle-timeout settings explicitly. Install the browser revision required by the official provider. by [**@whyself**](https://github.com/whyself)
+- Save editor content and back up configuration, workspace and volumes before upgrading. Keep the same Compose project and data volume, fetch and check out `v1.2.0`, run `docker compose up -d --build`, then refresh the page. Browser cookies persist per conversation; page memory and unsent forms do not survive restarts. by [**@whyself**](https://github.com/whyself)
+
+Deployment: [guide](https://github.com/whyself/Amadeus/blob/v1.2.0/docs/guide-deployment.md). Project contributors: [CONTRIBUTORS.md](https://github.com/whyself/Amadeus/blob/v1.2.0/CONTRIBUTORS.md). Core changes: [DSH v0.2.1-alpha.1](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.1-alpha.1).
+
 
 ## 1.2.0-rc.1 — 2026-10-02 （预发布；2026-10-04 更新）
 

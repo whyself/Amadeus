@@ -66,7 +66,7 @@ export class BrowserManager extends EventEmitter {
     }
   }
   async track(entry, page) {
-    if (page.isClosed()) return;
+    if (page.isClosed() || [...entry.pages.values()].includes(page)) return;
     const cdp = await entry.context.newCDPSession(page);
     let info;
     try { info = (await cdp.send('Target.getTargetInfo')).targetInfo; await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }); } finally { await cdp.detach(); }
@@ -92,8 +92,18 @@ export class BrowserManager extends EventEmitter {
   publish(entry, { persist = true } = {}) {
     if (this.entries.get(entry.sessionId) !== entry) return;
     entry.stateRevision++; this.emit('state', this.state(entry));
-    entry.metadata ??= new Map(); entry.metadataPending ??= new Set();
-    for (const [id, page] of entry.pages) if (!page.isClosed() && !entry.metadataPending.has(id)) {
+    for (const [id, page] of entry.pages) if (!page.isClosed()) this.refreshMetadata(entry, id, page);
+    const pages = [...entry.pages.values()].filter(p => !p.isClosed() && /^https?:/.test(p.url())).map(p => ({ url: p.url() }));
+    // A crashing target can disappear before the process exit notification.
+    // Keep the last nonempty checkpoint; explicit page-close tools clear it below.
+    if (persist && !entry.failed && !entry.disposing && pages.length) {
+      const serialized = JSON.stringify({ pages });
+      if (entry.persisted !== serialized) { entry.persisted = serialized; entry.persistTail = entry.persistTail.then(() => writeFile(path.join(entry.directory, 'pages.json'), serialized, { mode: 0o600 })).catch(() => { entry.persisted = null; }); }
+    }
+  }
+  refreshMetadata(entry, id, page) {
+    entry.metadata ??= new Map(); entry.metadataPending ??= new Set(); entry.metadataDirty ??= new Set();
+    if (entry.metadataPending.has(id)) { entry.metadataDirty.add(id); return; }
       entry.metadataPending.add(id);
       const pageUrl = page.url(), previous = entry.metadata.get(id);
       void readPageMetadata(page, previous, metadata => {
@@ -107,16 +117,9 @@ export class BrowserManager extends EventEmitter {
         if (previous?.title !== metadata.title || previous?.favicon !== metadata.favicon) { entry.stateRevision++; this.emit('state', this.state(entry)); }
       }).catch(() => {}).finally(() => {
         entry.metadataPending.delete(id);
-        if (!page.isClosed() && page.url() !== pageUrl && this.entries.get(entry.sessionId) === entry) this.publish(entry, { persist: false });
+        const changed = entry.metadataDirty.delete(id) || page.url() !== pageUrl;
+        if (changed && !page.isClosed() && this.entries.get(entry.sessionId) === entry) this.refreshMetadata(entry, id, page);
       });
-    }
-    const pages = [...entry.pages.values()].filter(p => !p.isClosed() && /^https?:/.test(p.url())).map(p => ({ url: p.url() }));
-    // A crashing target can disappear before the process exit notification.
-    // Keep the last nonempty checkpoint; explicit page-close tools clear it below.
-    if (persist && !entry.failed && !entry.disposing && pages.length) {
-      const serialized = JSON.stringify({ pages });
-      if (entry.persisted !== serialized) { entry.persisted = serialized; entry.persistTail = entry.persistTail.then(() => writeFile(path.join(entry.directory, 'pages.json'), serialized, { mode: 0o600 })).catch(() => { entry.persisted = null; }); }
-    }
   }
   validate(entry, input) {
     if (input.browserId !== entry.browserId || input.generation !== entry.generation || entry.failed) throw new BrowserError('Browser instance changed. Refresh its state before acting.');

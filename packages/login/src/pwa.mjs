@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
-export const PWA_VERSION = '1.2.0-rc.1';
-// RC1 was rebuilt in place; revise the worker so existing installs discard old
-// core/plugin assets while keeping the product version.
+export const PWA_VERSION = '1.2.0';
+// Versioned cache retires previous core/plugin assets on a release upgrade.
 const CACHE_NAME = `amadeus-pwa-${PWA_VERSION}-dsh-0.2.1-alpha.1`;
 const iconFiles = Object.freeze({
   192: new URL('../assets/amadeus-icon-192.png', import.meta.url),

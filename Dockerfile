@@ -45,7 +45,9 @@ RUN --mount=type=cache,target=/root/.npm \
     && sed -i 's/\r$//' /app/deploy/docker-entrypoint.sh \
     && chmod +x /app/deploy/docker-entrypoint.sh
 
-ENV NODE_ENV=production \
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    NODE_ENV=production \
     AMADEUS_CONFIG=/config/amadeus.yml \
     AMADEUS_EDITOR_BRIDGE_DIR=/data/editor/bridge \
     XDG_DATA_HOME=/data/share \

@@ -1,3 +1,5 @@
 - insert:
+    - id: amadeus-browser-use
+      name: '@deepseek-ai/dsh-browser-use'
     - id: amadeus-browser
       name: dsh-amadeus-browser

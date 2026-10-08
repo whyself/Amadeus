@@ -24,6 +24,8 @@ jobs:
       - run: npm ci
       - run: npm test && npm run build
       - run: npx playwright install --with-deps chromium webkit
+      - run: npm run setup:browsers -- --with-deps
+      - run: npm run test:shared-browser-live && npm run test:shared-browser-ui
       - run: npm run test:files-browser && node tests/native-tree-browser.mjs && node tests/editor-appearance-browser.mjs && npm run test:editor-browser && npm run test:annotations-browser && npm run test:browser-compat
       - run: docker build --progress=plain -t "$AMADEUS_TEST_IMAGE" .
       - run: npm run test:editor-live

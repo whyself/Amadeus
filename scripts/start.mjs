@@ -20,7 +20,7 @@ const config = yaml.load(await readFile(configPath, 'utf8'));
 if (!config?.username || !config?.password || config.password === 'CHANGE-ME') throw new Error('Set username/password in the private amadeus.local.yml before starting.');
 const home = path.resolve(config.home || path.join(root, '.amadeus/dsh-home'));
 await mkdir(home, { recursive: true, mode: 0o700 });
-await ensurePlaywrightBrowsers({ root, home, config });
+await ensurePlaywrightBrowsers({ root, config });
 const patch = createRuntimePatch({ root, home, config });
 const patchPath = path.join(home, 'amadeus.cordis.patch.yml');
 await writeFile(patchPath, yaml.dump(patch), { mode: 0o600 });

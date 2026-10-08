@@ -9,6 +9,7 @@ import net from 'node:net';
 import { once } from 'node:events';
 import { chromium, expect } from '@playwright/test';
 import { initializeProfileFromDefault } from '@deepseek-ai/dsh/profile-boot';
+import { resolveBrowserRuntime } from '../scripts/browser-bootstrap.mjs';
 
 await mkdir('test-results', { recursive: true });
 const directory = await mkdtemp(path.resolve('test-results/shared-ui-'));
@@ -16,21 +17,23 @@ const probe = net.createServer(); await new Promise(resolve => probe.listen(0, '
 const origin = `http://127.0.0.1:${port}`;
 let submitted = '';
 const fixture = createServer((req, res) => {
-  if (req.url === '/site-icon.svg') {
+  if (req.url === '/site-icon.svg' || req.url === '/slow-icon.svg') {
     if (!req.headers.cookie?.includes('site-icon-ready=yes')) { res.writeHead(401); res.end(); return; }
-    res.writeHead(200, { 'Content-Type': 'image/svg+xml' }); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" rx="3" fill="#2563eb"/><path d="M4 12L8 3l4 9M5.5 9h5" fill="none" stroke="white" stroke-width="1.5"/></svg>'); return;
+    const send = () => { res.writeHead(200, { 'Content-Type': 'image/svg+xml' }); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" rx="3" fill="#2563eb"/><path d="M4 12L8 3l4 9M5.5 9h5" fill="none" stroke="white" stroke-width="1.5"/></svg>'); };
+    if (req.url === '/slow-icon.svg') setTimeout(send, 1000); else send(); return;
   }
+  if (req.url === '/slow-title') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('<!doctype html><meta charset="utf-8"><link rel="icon" href="/slow-icon.svg"><script>setTimeout(()=>document.title="加载完成后的标题",200)</script><h1>Delayed title</h1>'); return; }
   if (req.url.startsWith('/submitted')) submitted = new URL(req.url, 'http://fixture').searchParams.get('value');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': 'site-icon-ready=yes; Path=/; SameSite=Lax' });
   res.end('<!doctype html><meta charset="utf-8"><title>共同浏览器测试</title><link rel="icon" href="/site-icon.svg"><h1>共同网页</h1><input id="value" style="position:absolute;left:40px;top:70px;width:400px;height:40px;font-size:24px"><button style="position:absolute;left:40px;top:140px" onclick="document.querySelector(\'h1\').textContent=document.querySelector(\'#value\').value;fetch(\'/submitted?value=\'+encodeURIComponent(document.querySelector(\'#value\').value))">提交</button>');
 });
 fixture.listen(0, '127.0.0.1'); await once(fixture, 'listening'); const fixtureUrl = `http://127.0.0.1:${fixture.address().port}/form`;
 const username = 'fixture', password = randomBytes(24).toString('hex'); const config = path.join(directory, 'config.json');
-const executablePath = process.env.DSH_BROWSER_EXECUTABLE || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const executablePath = process.env.DSH_BROWSER_EXECUTABLE || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : resolveBrowserRuntime(process.cwd()).executable);
 await writeFile(config, JSON.stringify({ username, password, host: '127.0.0.1', port, home: path.join(directory, 'home'), workspace: directory, browserUse: { enabled: true, executablePath } }));
 const driver=path.join(directory,'driver.mjs');
 await writeFile(driver, `export const inject=['webServer','agents','tools'];
-export function apply(ctx){ctx.effect(()=>ctx.webServer.register({kind:'exact',path:'/_test/browser',handler:async(req,res)=>{try{let data='';for await(const chunk of req)data+=chunk;const input=JSON.parse(data);const agent=ctx.agents.get(input.session);if(!agent)throw new Error('Fixture Agent is not loaded');if(input.turn)agent.session.append('turn/start',{turn:input.turn});const result=await ctx.tools.execute({agent,name:'mcp__playwright-mcp__'+input.name,arguments:input.args,callId:crypto.randomUUID(),signal:AbortSignal.timeout(30000)});res.writeHead(result.isError?500:200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));}catch(error){res.writeHead(500);res.end(error.message);}}}));}`);
+export function apply(ctx){ctx.effect(()=>ctx.webServer.register({kind:'exact',path:'/_test/browser',handler:async(req,res)=>{try{let data='';for await(const chunk of req)data+=chunk;const input=JSON.parse(data);const agent=ctx.agents.get(input.session);if(!agent)throw new Error('Fixture Agent is not loaded');if(input.turn)agent.session.append('turn/start',{turn:input.turn});const result=await ctx.tools.execute({agent,name:'mcp__playwright-mcp__'+input.name,arguments:input.args,callId:crypto.randomUUID(),signal:AbortSignal.timeout(30000)});res.writeHead(result.isError?500:200,{'Content-Type':'application/json'});const manager=ctx.get("amadeusBrowser");const entry=manager.entries.get(agent.id);res.end(JSON.stringify({...result,_fixtureState:entry?{selected:entry.selected,revision:entry.stateRevision,pages:[...entry.pages].map(([id,page])=>({id,url:page.url()}))}:null}));}catch(error){res.writeHead(500);res.end(error.message);}}}));}`);
 initializeProfileFromDefault('amadeus', 'web', path.join(directory, 'home'));
 const overlay=path.join(directory,'home/profiles/amadeus/cordis.patch.yml');await writeFile(overlay,JSON.stringify([{insert:[{id:'browser-test-driver',name:driver.replaceAll('\\','/')}]}]));
 const child = spawn(process.execPath, ['scripts/start.mjs'], { env: { ...process.env, AMADEUS_CONFIG: config }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -58,7 +61,7 @@ try {
   });
   const call=async(name,args,turn)=>{const response=await fetch(origin+'/_test/browser',{method:'POST',headers:{Authorization:'Basic '+Buffer.from(username+':'+password).toString('base64')},body:JSON.stringify({session:sessionId,name,args,turn})});const body=await response.text();assert.equal(response.status,200,body);return body;};
   await page.getByRole('button',{name:'收起右侧边栏',exact:true}).click();
-  await call('browser_navigate',{url:fixtureUrl},1);
+  const navigation=JSON.parse(await call('browser_navigate',{url:fixtureUrl},1)); assert.equal(navigation._fixtureState.pages.find(page=>page.id===navigation._fixtureState.selected).url,fixtureUrl);
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole('textbox',{name:'AI 浏览器地址'})).toHaveValue(fixtureUrl);
   await expect(viewer.getByRole('textbox',{name:'AI 浏览器地址'})).toHaveAttribute('readonly','');
@@ -72,6 +75,9 @@ try {
   await call('browser_evaluate', { function: '() => { document.title = "跳转后的标题"; return document.title; }' });
   await expect(viewer.locator('.amadeus-browser-page-name')).toHaveText('跳转后的标题');
   assert.equal(await page.evaluate(() => window.seenBrowserTitles.some(title => /^https?:\/\//.test(title))), false);
+  await call('browser_navigate', { url: `http://127.0.0.1:${fixture.address().port}/slow-title` });
+  await expect(viewer.locator('.amadeus-browser-page-name')).toHaveText('加载完成后的标题', { timeout: 10000 });
+  await call('browser_navigate', { url: fixtureUrl });
   assert.equal(await viewer.locator('canvas').evaluate(canvas=>getComputedStyle(canvas).pointerEvents),'none');
   assert.match(await call('browser_evaluate',{function:'() => document.querySelector("#value").value'}),/Result/);
   const rejected=await fetch(origin+'/amadeus/browser/command?session='+encodeURIComponent(sessionId),{method:'POST',headers:{Authorization:'Basic '+Buffer.from(username+':'+password).toString('base64')},body:JSON.stringify({action:'text',text:'must not reach browser'})});assert.equal(rejected.status,403);

@@ -33,7 +33,7 @@ export function BrowserTab({ sessionId, useTabInfo }) {
     let alive = true; const generation = transportGeneration;
     fetch(`/amadeus/browser/state?session=${encodeURIComponent(sessionId)}`).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error); if (alive && generation === transportGeneration) publish(body); }).catch(error => { if (alive) setError(error.message); });
     return () => { alive = false; };
-  }, [sessionId]);
+  }, [sessionId, state?.reveal?.id]);
   useEffect(() => {
     setConnected(false);
     if (!visible || !state?.selectedTargetId || state.failed || !canvas.current) return;
