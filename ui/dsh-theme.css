@@ -1,5 +1,6 @@
 /* Native DSH previews, file tree and primitives own their UI. */
 ::highlight(amadeus-annotation-source){background:rgba(255,205,60,.5)}
+[data-conversation-scroll][data-amadeus-quote-navigation]{overflow-anchor:none}
 .amadeus-files,.amadeus-annotations,.amadeus-sent,.amadeus-selection{font-family:var(--dsw-font-family);font-size:var(--dsh-content-font-size-secondary,13px);line-height:1.5;color:var(--dsw-alias-label-primary)}
 .amadeus-icon{width:28px;height:28px;padding:6px;border-radius:28px;color:var(--dsw-alias-label-secondary);transition:background-color .12s,color .12s}
 .amadeus-icon:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -64,7 +65,11 @@
 .amadeus-modal .amadeus-confirm-delete{background:var(--dsw-alias-state-error-primary);color:#fff}
 @media(pointer:coarse){.amadeus-files{--amadeus-file-action-size:32px}}
 .amadeus-latency-holder{margin-left:auto;display:inline-flex;align-items:center;min-width:0}.amadeus-latency-holder [data-amadeus-latency]{padding-left:0!important}
-.amadeus-annotation-reference{display:inline-flex;align-items:center;padding:1px 6px;border:.5px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);font:inherit;line-height:1.35;cursor:pointer}.amadeus-annotation-reference:hover{background:var(--dsw-alias-bg-layer-2)}.amadeus-annotation-reference:focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:2px}
+.amadeus-assistant-annotations{--amadeus-annotation-link:#2563eb;--amadeus-annotation-link-hover:#1d4ed8}
+[data-ds-dark-theme] .amadeus-assistant-annotations{--amadeus-annotation-link:#8ab4f8;--amadeus-annotation-link-hover:#adcaff}
+.amadeus-assistant-annotations .amadeus-annotation-reference{display:inline;appearance:none;margin:0;padding:0 2px;border:0;border-radius:0;box-shadow:none;background:transparent;color:var(--amadeus-annotation-link);font:inherit;font-size:.9em;line-height:inherit;white-space:nowrap;text-decoration:none;cursor:pointer}
+.amadeus-assistant-annotations .amadeus-annotation-reference:hover{background:transparent;color:var(--amadeus-annotation-link-hover);text-decoration:underline;text-underline-offset:3px}
+.amadeus-assistant-annotations .amadeus-annotation-reference:focus-visible{outline:2px solid var(--amadeus-annotation-link);outline-offset:3px}
 .amadeus-conversation-toggle{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:36px;margin:0 2px 4px -4px;padding:6px 8px;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary);font:14px/22px var(--dsw-font-family);text-align:left;cursor:pointer}.amadeus-conversation-toggle:hover{background:var(--dsw-alias-interactive-bg-hover)}.amadeus-conversation-toggle:focus-visible{outline:2px solid var(--dsw-alias-button-primary-fill);outline-offset:-2px}.amadeus-conversation-glyph{display:inline-flex;flex:none;width:18px;height:18px;transition:transform var(--ds-transition-duration-slow) var(--ds-ease-in-out)}.amadeus-conversation-toggle[aria-pressed=true] .amadeus-conversation-glyph{transform:rotate(180deg)}[data-sidebar-collapsed] .amadeus-conversation-toggle{width:36px;height:36px;justify-content:center;margin:0 0 4px;padding:0}
 [data-amadeus-chat-managed]{grid-template-columns:var(--amadeus-sidebar-column,280px) var(--amadeus-chat-width,0px) minmax(0,1fr)!important;transition:grid-template-columns var(--ds-transition-duration-slow,.3s) var(--ds-ease-in-out,cubic-bezier(.4,0,.2,1))}[data-amadeus-chat-managed] [data-sidebar-right-panel]{width:100%!important}[data-amadeus-conversation-collapsed=true] [data-side=right].pI_x6G_handle{display:none}
 /* Keep settled assistant Markdown/LaTeX out of layout while it is far from the chat viewport. The UA remembers each row's last painted block size, so resizing can reuse it until that row approaches the viewport. */

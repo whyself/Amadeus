@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives';
-import { createAnnotationStore, findAnnotationReferences, findAnnotationSource, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from './annotations.mjs';
+import { annotationDisplayContent, annotationSlotOptions, createAnnotationStore, findAnnotationReferences, findAnnotationSource, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from './annotations.mjs';
 import styles from '../../../ui/amadeus.css';
 import themeStyles from '../../../ui/dsh-theme.css';
 import { reconcileAnnotationDraft, stripAnnotationDraftMarker } from './reader-state.mjs';
@@ -10,6 +10,8 @@ import brandMark from '../assets/amadeus-brand-mark.png';
 import { ConversationCollapse } from './conversation-collapse.jsx';
 import { installConnectionLatency } from './connection-latency.jsx';
 import { setAmadeusLocale, useAmadeusLocale, tr } from './locale.mjs';
+import { AnnotationPopover } from './annotation-popover.jsx';
+import { animateQuoteNavigation } from './annotation-scroll.mjs';
 
 export const inject = ['slots', 'sidebarRight', 'sidebarRightTabs', 'conversation', 'locale'];
 function AmadeusBrandMark({ size = 24, className }) {
@@ -87,47 +89,70 @@ function nearestHeading(scope, node) {
   return heading;
 }
 const denseText = text => text.replace(/\r\n/g, '\n').replace(/\n[\t ]*\n+/g, '\n').trim();
+const AnnotationReferenceContext = React.createContext([]);
+function AnnotationReferenceText({ text }) {
+  useAmadeusLocale();
+  const annotations = React.useContext(AnnotationReferenceContext);
+  const references = findAnnotationReferences(text, annotations.length);
+  if (!references.length) return text;
+  const children = [];let offset = 0;
+  for (const reference of references) {
+    if (reference.start > offset) children.push(text.slice(offset,reference.start));
+    children.push(<button key={reference.start} type="button" className="amadeus-annotation-reference" data-amadeus-annotation-ref={reference.number} aria-label={`${tr('查看注释','View annotation')} ${reference.number}`}>{tr('注释','Annotation')} {reference.number}</button>);
+    offset = reference.end;
+  }
+  if (offset < text.length) children.push(text.slice(offset));
+  return <>{children}</>;
+}
+export function renderAnnotationReferenceText(text, inLink) {
+  return !inLink && /注释\s*\d/.test(text) ? <AnnotationReferenceText text={text} /> : undefined;
+}
 function AnnotationChip({ annotations }) {
   useAmadeusLocale();
   const anchor = useRef(), timer = useRef();
-  const [expanded, setExpanded] = useState(false), [position, setPosition] = useState({});
+  const [expanded, setExpanded] = useState(false);
   function reveal() {
     clearTimeout(timer.current);
-    const rect = anchor.current.getBoundingClientRect();
-    setPosition({ left: Math.max(8, Math.min(rect.left, innerWidth - 436)), ...(rect.top > 260 ? { bottom: innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }) });
     setExpanded(true);
   }
-  function leave() { timer.current = setTimeout(() => setExpanded(false), 80); }
+  function leave() { if (anchor.current === anchor.current?.ownerDocument.activeElement) return;timer.current = setTimeout(() => setExpanded(false), 80); }
   useEffect(() => () => clearTimeout(timer.current), []);
   return <div className="amadeus-sent-summary"><button ref={anchor} className="amadeus-summary-chip amadeus-sent-chip" aria-label={`${tr('查看', 'View')} ${annotations.length} ${tr('条已发送注释', 'sent annotations')}`} aria-expanded={expanded} onMouseEnter={reveal} onMouseLeave={leave} onFocus={reveal} onBlur={leave} onKeyDown={event => { if (event.key === 'Escape') setExpanded(false); }}><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M5 3.5h10a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H8l-4.5 3V5A1.5 1.5 0 0 1 5 3.5Z"/><path d="M7 7h6M7 10h4"/></svg>{annotations.length} {tr('条注释', 'annotations')}</button>
-    {expanded && <div className="amadeus-annotation-popover amadeus-sent-popover" style={position} role="region" aria-label={tr('已发送注释详情', 'Sent annotation details')} onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={leave}><div className="amadeus-annotation-list">{annotations.map((item, index) => <article key={index} className="amadeus-hover-note"><span className="amadeus-note-number">{index + 1}。</span><div className="amadeus-note-copy"><span className="amadeus-note-label">{tr('所选文本：', 'Selected text:')}</span><blockquote>{denseText(item.text)}</blockquote><span className="amadeus-note-label">{tr('用户评论：', 'Comment:')}</span><p>{item.annotation || tr('（无）', '(none)')}</p></div></article>)}</div></div>}
+    {expanded && <AnnotationPopover anchor={anchor.current} onClose={() => setExpanded(false)} className="amadeus-sent-popover" role="region" aria-label={tr('已发送注释详情', 'Sent annotation details')} onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={leave}><div className="amadeus-annotation-list">{annotations.map((item, index) => <article key={index} className="amadeus-hover-note"><span className="amadeus-note-number">{index + 1}。</span><div className="amadeus-note-copy"><span className="amadeus-note-label">{tr('所选文本：', 'Selected text:')}</span><blockquote>{denseText(item.text)}</blockquote><span className="amadeus-note-label">{tr('用户评论：', 'Comment:')}</span><p>{item.annotation || tr('（无）', '(none)')}</p></div></article>)}</div></AnnotationPopover>}
   </div>;
 }
-function SentAnnotations({ node, renderMessageImages }) {
+function SentAnnotations({ node, renderMessageImages, previewAttachments, pending, echo }) {
   useAmadeusLocale();
   const { annotations, prompt } = node.data.amadeus;
   const attachments = node.data.content.filter(block => ['image', 'file'].includes(block.type) && block.attachment);
-  return <section className="amadeus-sent" aria-label={tr('已发送的注释', 'Sent annotations')}>
+  const images = previewAttachments ? previewAttachments.filter(block => block.type === 'image').map(block => block.image) : attachments.filter(block => block.type === 'image').map(block => ({ attachment: block.attachment }));
+  const files = previewAttachments ? previewAttachments.filter(block => block.type === 'file').map(block => block.file) : attachments.filter(block => block.type === 'file').map(block => block.attachment);
+  return <section className="amadeus-sent" aria-label={tr('已发送的注释', 'Sent annotations')} data-pending-steering={pending || undefined} data-submission-echo={echo || undefined}>
     <AnnotationChip annotations={annotations} />
-    {(prompt || attachments.length > 0) && <div className="amadeus-sent-message">
+    {(prompt || images.length > 0 || files.length > 0) && <div className="amadeus-sent-message">
     {prompt && <p style={{ whiteSpace: 'pre-wrap' }}>{prompt}</p>}
-    {attachments.filter(b => b.type === 'image').map((b, index) => <React.Fragment key={index}>{renderMessageImages({ images: [{ attachment: b.attachment }], align: 'end', compact: true })}</React.Fragment>)}
-    {attachments.filter(b => b.type === 'file').map((b, index) => <span key={index}>{tr('附件：', 'Attachment: ')}{b.attachment.name}</span>)}
+    {images.map((image, index) => <React.Fragment key={index}>{renderMessageImages({ images: [image], align: 'end', compact: true })}</React.Fragment>)}
+    {files.map((file, index) => <span key={index}>{tr('附件：', 'Attachment: ')}{file.name}</span>)}
     </div>}
   </section>;
+}
+export function renderAnnotatedBubble({ content, ...props }) {
+  const envelope = parseAnnotatedPrompt(content.filter(block => block.type === 'text').map(block => block.text).join(''));
+  return envelope ? <SentAnnotations {...props} node={{ data: { content, amadeus: envelope } }} /> : null;
 }
 function annotationEnvelope(node) {
   if (!node || !['user', 'steering'].includes(node.kind)) return null;
   const text = node.data.content.filter(block => block.type === 'text').map(block => block.text).join('');
   return parseAnnotatedPrompt(text);
 }
-function AssistantAnnotationPopover({ annotation, number, position, onEnter, onLeave }) {
+function AssistantAnnotationPopover({ annotation, number, anchor, onClose, onEnter, onLeave }) {
   useAmadeusLocale();
-  return <div className="amadeus-annotation-popover amadeus-annotation-reference-popover" style={position} role="tooltip" onMouseEnter={onEnter} onMouseLeave={onLeave}><div className="amadeus-annotation-list"><article className="amadeus-hover-note"><span className="amadeus-note-number">{number}。</span><div className="amadeus-note-copy"><span className="amadeus-note-label">{tr('所选文本：', 'Selected text:')}</span><blockquote>{denseText(annotation.text)}</blockquote><span className="amadeus-note-label">{tr('用户评论：', 'Comment:')}</span><p>{annotation.annotation || tr('（无）', '(none)')}</p>{annotation.source?.kind === 'file' && <small className="amadeus-note-source">{annotation.source.path}{annotation.source.pageStart ? ` · ${tr('第', 'page')} ${annotation.source.pageStart} ${tr('页', '')}` : ''}</small>}</div></article></div></div>;
+  return <AnnotationPopover anchor={anchor} onClose={onClose} className="amadeus-annotation-reference-popover" role="tooltip" onMouseEnter={onEnter} onMouseLeave={onLeave}><div className="amadeus-annotation-list"><article className="amadeus-hover-note"><span className="amadeus-note-number">{number}。</span><div className="amadeus-note-copy"><span className="amadeus-note-label">{tr('所选文本：', 'Selected text:')}</span><blockquote>{denseText(annotation.text)}</blockquote><span className="amadeus-note-label">{tr('用户评论：', 'Comment:')}</span><p>{annotation.annotation || tr('（无）', '(none)')}</p>{annotation.source?.kind === 'file' && <small className="amadeus-note-source">{annotation.source.path}{annotation.source.pageStart ? ` · ${tr('第', 'page')} ${annotation.source.pageStart} ${tr('页', '')}` : ''}</small>}</div></article></div></AnnotationPopover>;
 }
 function decorateAnnotationReferences(root, maximum) {
   if (!root || maximum < 1) return;
   for (const button of root.querySelectorAll('[data-amadeus-annotation-ref]')) {
+    if (button.closest('[data-amadeus-native-markdown]')) continue;
     const number = button.dataset.amadeusAnnotationRef;
     const label = `${tr('注释', 'Annotation')} ${number}`;
     const accessible = `${tr('查看注释', 'View annotation')} ${number}`;
@@ -140,7 +165,7 @@ function decorateAnnotationReferences(root, maximum) {
   while (walker.nextNode()) textNodes.push(walker.currentNode);
   for (const textNode of textNodes) {
     const parent = textNode.parentElement;
-    if (!parent || parent.closest('a,button,code,pre,kbd,samp,script,style,textarea,input,.amadeus-annotation-popover,[data-amadeus-annotation-ref]')) continue;
+    if (!parent || parent.closest('[data-amadeus-native-markdown],a,button,code,pre,kbd,samp,script,style,textarea,input,.amadeus-annotation-popover,[data-amadeus-annotation-ref]')) continue;
     const references = findAnnotationReferences(textNode.data, maximum);
     if (references.length === 0) continue;
     const fragment = doc.createDocumentFragment();
@@ -174,8 +199,7 @@ export function AssistantWithAnnotationLinks({ Native, openAnnotation, ...props 
     const annotation = annotations[number - 1];
     if (!annotation) return;
     clearTimeout(hideTimer.current);
-    const rect = anchor.getBoundingClientRect();
-    setPopover({ annotation, number, position: { left: Math.max(8, Math.min(rect.left, innerWidth - 428)), ...(rect.top > 260 ? { bottom: innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }) } });
+    setPopover({ annotation, number, anchor });
   };
   const leave = () => { hideTimer.current = setTimeout(() => setPopover(null), 80); };
   useEffect(() => () => clearTimeout(hideTimer.current), []);
@@ -197,7 +221,7 @@ export function AssistantWithAnnotationLinks({ Native, openAnnotation, ...props 
     return () => observer.disconnect();
   }, [annotations.length, props.node, language]);
   if (annotations.length === 0) return <Native {...props} />;
-  return <div ref={root} className="amadeus-assistant-annotations" onMouseOver={event => { const anchor = reference(event.target); if (anchor) reveal(anchor); }} onMouseOut={event => { const anchor = reference(event.target); if (anchor && !anchor.contains(event.relatedTarget)) leave(); }} onFocus={event => { const anchor = reference(event.target); if (anchor) reveal(anchor); }} onBlur={event => { if (reference(event.target)) leave(); }} onClick={event => { const anchor = reference(event.target); if (!anchor) return; event.preventDefault(); const number = Number(anchor.dataset.amadeusAnnotationRef); const annotation = annotations[number - 1]; if (annotation) openAnnotation(annotation); }}><Native {...props} />{popover && <AssistantAnnotationPopover {...popover} onEnter={() => clearTimeout(hideTimer.current)} onLeave={leave} />}</div>;
+  return <div ref={root} className="amadeus-assistant-annotations" onMouseOver={event => { const anchor = reference(event.target); if (anchor) reveal(anchor); }} onMouseOut={event => { const anchor = reference(event.target); if (anchor && !anchor.contains(event.relatedTarget) && anchor !== anchor.ownerDocument.activeElement) leave(); }} onFocus={event => { const anchor = reference(event.target); if (anchor) reveal(anchor); }} onBlur={event => { if (reference(event.target)) leave(); }} onClick={event => { const anchor = reference(event.target); if (!anchor) return; event.preventDefault(); const number = Number(anchor.dataset.amadeusAnnotationRef); const annotation = annotations[number - 1]; clearTimeout(hideTimer.current);setPopover(null);anchor.blur();if (annotation) openAnnotation(annotation); }}><AnnotationReferenceContext.Provider value={annotations}><Native {...props} /></AnnotationReferenceContext.Provider>{popover && <AssistantAnnotationPopover {...popover} onClose={() => setPopover(null)} onEnter={() => clearTimeout(hideTimer.current)} onLeave={leave} />}</div>;
 }
 let conversationHighlightTimer;
 function conversationTextRange(anchor, quote, source) {
@@ -227,8 +251,7 @@ function conversationTextRange(anchor, quote, source) {
   return range;
 }
 function scrollConversationRange(range) {
-  const rect = range.getBoundingClientRect();
-  if (!rect.width && !rect.height) return;
+  let rect = range.getBoundingClientRect();
   let scroller = range.startContainer.parentElement;
   while (scroller && scroller !== document.body) {
     const overflow = getComputedStyle(scroller).overflowY;
@@ -236,9 +259,17 @@ function scrollConversationRange(range) {
     scroller = scroller.parentElement;
   }
   if (!scroller || scroller === document.body) {
+    if (!rect.width && !rect.height) return;
     window.scrollBy({ top: rect.top - innerHeight / 2 + rect.height / 2, behavior: 'smooth' });
     return;
   }
+  if (scroller.matches('[data-conversation-scroll]')) {
+    const detail={range,handled:false,animate:animateQuoteNavigation};
+    scroller.dispatchEvent(new CustomEvent('amadeus:annotation-jump',{detail}));
+    if(detail.handled)return;
+    rect = range.getBoundingClientRect();
+  }
+  if (!rect.width && !rect.height) return;
   const frame = scroller.getBoundingClientRect();
   scroller.scrollBy({ top: rect.top - frame.top - scroller.clientHeight / 2 + rect.height / 2, behavior: 'smooth' });
 }
@@ -296,12 +327,12 @@ export function watchFileAnnotation(host, focus) {
 function sessionFileAddress(sessionId, path) {
   return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
-function AnnotationDock({ sessionId, store, useInput, inputActions }) {
+export function AnnotationDock({ sessionId, store, useInput, inputActions }) {
   useAmadeusLocale();
   const items = useSyncExternalStore(store.subscribe, () => store.get(sessionId));
   const draft = useInput(state => state.draft), phase = useInput(state => state.phase);
   const [editing, setEditing] = useState(null), [comment, setComment] = useState('');
-  const [expanded, setExpanded] = useState(false), [position, setPosition] = useState({ left: 0, bottom: 0 });
+  const [expanded, setExpanded] = useState(false);
   const summary = useRef(), hideTimer = useRef();
   const selected = items.find(item => item.id === editing);
   useEffect(() => {
@@ -310,8 +341,6 @@ function AnnotationDock({ sessionId, store, useInput, inputActions }) {
   }, [draft, inputActions, items.length, phase]);
   function reveal() {
     clearTimeout(hideTimer.current);
-    const rect = summary.current.getBoundingClientRect();
-    setPosition({ left: Math.max(8, Math.min(rect.left, innerWidth - 376)), bottom: Math.max(8, innerHeight - rect.top + 6) });
     setExpanded(true);
   }
   function leave() { hideTimer.current = setTimeout(() => setExpanded(false), 80); }
@@ -327,9 +356,9 @@ function AnnotationDock({ sessionId, store, useInput, inputActions }) {
   }, [items.length > 0]);
   return <><div className="amadeus-annotations amadeus-annotation-summary" aria-label={tr('待发送注释', 'Pending annotations')}>{items.length > 0 && <>
     <div className="amadeus-summary-pill" onMouseEnter={reveal} onMouseLeave={leave}><button ref={summary} className="amadeus-summary-chip" aria-label={`${items.length} ${tr('条注释', 'annotations')}`} aria-expanded={expanded} onFocus={reveal} onBlur={leave} onKeyDown={event => { if (event.key === 'Escape') setExpanded(false); }}><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M5 3.5h10a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H8l-4.5 3V5A1.5 1.5 0 0 1 5 3.5Z"/><path d="M7 7h6M7 10h4"/></svg>{items.length} {tr('条注释', 'annotations')}</button><button className="amadeus-clear-notes" aria-label={tr('清除全部注释', 'Clear all annotations')} title={tr('清除全部注释', 'Clear all annotations')} onClick={() => { store.clear(sessionId); setExpanded(false); }}>×</button></div>
-    {expanded && <div className="amadeus-annotation-popover" style={position} role="region" aria-label={tr('全部注释', 'All annotations')} onMouseEnter={() => clearTimeout(hideTimer.current)} onMouseLeave={leave} onKeyDown={event => { if (event.key === 'Escape') setExpanded(false); }}>
+    {expanded && <AnnotationPopover anchor={summary.current} onClose={() => setExpanded(false)} role="region" aria-label={tr('全部注释', 'All annotations')} onMouseEnter={() => clearTimeout(hideTimer.current)} onMouseLeave={leave} onFocusCapture={() => clearTimeout(hideTimer.current)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) leave(); }} onKeyDown={event => { if (event.key === 'Escape') setExpanded(false); }}>
       <div className="amadeus-annotation-list">{items.map((item, index) => <article key={item.id} className="amadeus-hover-note"><span className="amadeus-note-number">{index + 1}。</span><div className="amadeus-note-copy"><div className="amadeus-hover-note-title"><span>{tr('所选文本：', 'Selected text:')}</span><button className="amadeus-icon" aria-label={`${tr('编辑注释', 'Edit annotation')} ${index + 1}`} title={tr('编辑', 'Edit')} onClick={() => { setEditing(item.id); setComment(item.annotation); setExpanded(false); }}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="m12.5 3.5 4 4M3 17l1-5L13.5 2.5a2.8 2.8 0 0 1 4 4L8 16Z"/></svg></button><button className="amadeus-icon" aria-label={`${tr('删除注释', 'Delete annotation')} ${index + 1}`} title={tr('删除', 'Delete')} onClick={() => store.remove(sessionId, item.id)}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6"/></svg></button></div><blockquote>{denseText(item.text)}</blockquote><span className="amadeus-note-label">{tr('用户评论：', 'Comment:')}</span><p>{item.annotation || tr('（无）', '(none)')}</p></div></article>)}</div>
-    </div>}
+    </AnnotationPopover>}
   </>}</div>
   <Modal open={!!selected} title={tr('编辑注释', 'Edit annotation')} closeLabel={tr('关闭', 'Close')} onClose={() => setEditing(null)} className="amadeus-modal" footer={<div className="amadeus-modal-actions"><Button onClick={() => setEditing(null)}>{tr('取消', 'Cancel')}</Button><Button variant="primary" onClick={() => { store.update(sessionId, editing, comment); setEditing(null); }}>{tr('保存', 'Save')}</Button></div>}>{selected && <div className="amadeus-annotation-editor"><textarea autoFocus aria-label={tr('修改注释的问题', 'Edit annotation comment')} value={comment} onChange={e => setComment(e.target.value)} /></div>}</Modal></>;
 }
@@ -344,16 +373,17 @@ function SelectionPopup({ selection, onSave, onClose, initialEditing = false }) 
     {!editing ? <button className="amadeus-selection-trigger" onMouseDown={e => e.preventDefault()} onClick={() => setEditing(true)}><span aria-hidden="true">＋</span> {tr('添加到对话', 'Add to chat')}</button> : <><input autoFocus type="text" aria-label={tr('针对选中文本的问题', 'Question about selected text')} placeholder={tr('添加可选评论…', 'Add an optional comment…')} value={annotation} onChange={e => setAnnotation(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); save(); } }} /><button type="button" className="amadeus-selection-confirm" aria-label={tr('添加注释', 'Add annotation')} title={tr('添加注释', 'Add annotation')} onClick={save}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m4.5 10 3.5 4 7.5-9" /></svg></button>{error && <p role="alert">{error}</p>}</>}
   </div>;
 }
-function installSelection(ctx, store, activeSession) {
+export function installSelection(ctx, store, activeSession) {
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
-  let locked = false, skipMouseUp = false, pointerSelecting = false, selectionTimer;
+  let locked = false, skipMouseUp = false, pointerSelecting = false, selectionTimer, suppressed = false;
   function close() { locked = false; root.render(null); }
-  function cancel() { close(); window.getSelection()?.removeAllRanges(); }
+  function cancel() { suppressed = true;clearTimeout(selectionTimer);close();window.getSelection()?.removeAllRanges(); }
   function fromEditor(event) {
     const detail = event.detail;
     if (!detail?.sessionId || !detail.text?.trim() || detail.source?.kind !== 'file') return;
     detail.handled = true;
+    suppressed = false;
     activeSession.id = detail.sessionId;
     locked = true;
     const sessionId = detail.sessionId;
@@ -364,12 +394,14 @@ function installSelection(ctx, store, activeSession) {
     skipMouseUp = false;
     if (host.contains(event.target)) { locked = true; return; }
     if (locked) { cancel(); skipMouseUp = true; }
+    if (event.target?.closest?.('[data-chat-anchor-key],[data-amadeus-path]') && !event.target.closest('input,textarea,[contenteditable]')) suppressed = false;
   }
   function detect(event) {
     if (event?.type === 'pointerup' || event?.type === 'touchend' || event?.type === 'mouseup' || event?.type === 'keyup') clearTimeout(selectionTimer);
     if (event?.type === 'mouseup' && skipMouseUp) { skipMouseUp = false; return; }
     if (event?.target && host.contains(event.target)) { locked = true; return; }
     if (locked) return;
+    if (suppressed) return close();
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) return close();
     const text = selection.toString().trim();
@@ -424,6 +456,15 @@ function installSelection(ctx, store, activeSession) {
   }
   function finishPointerSelection(event) { pointerSelecting = false; detect(event); }
   function cancelPointerSelection() { pointerSelecting = false; }
+  const beginKeyboardSelection = event => {
+    if (event.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key) && !event.target?.closest?.('input,textarea,[contenteditable]')) suppressed = false;
+  };
+  const beginSubmission = event => {
+    if (event.detail?.sessionId !== activeSession.id) return;
+    suppressed = true;clearTimeout(selectionTimer);pointerSelecting = false;skipMouseUp = true;
+    cancel();
+  };
+  const outsideFrameFocus = () => queueMicrotask(() => { if (host.isConnected && locked && document.activeElement?.tagName === 'IFRAME') cancel(); });
   document.addEventListener('pointerdown', outsidePointerDown, true);
   document.addEventListener('touchstart', outsidePointerDown, { capture: true, passive: true });
   // PDF text layers and touch selection handles emit pointer/selection events;
@@ -435,12 +476,25 @@ function installSelection(ctx, store, activeSession) {
   document.addEventListener('touchcancel', cancelPointerSelection);
   document.addEventListener('mouseup', detect);
   document.addEventListener('keyup', detect);
+  document.addEventListener('keydown', beginKeyboardSelection);
   document.addEventListener('selectionchange', scheduleDetect);
   window.addEventListener('amadeus:editor-selection', fromEditor);
-  return () => { clearTimeout(selectionTimer); document.removeEventListener('pointerdown', outsidePointerDown, true); document.removeEventListener('touchstart', outsidePointerDown, true); document.removeEventListener('pointerup', finishPointerSelection); document.removeEventListener('touchend', finishPointerSelection); document.removeEventListener('pointercancel', cancelPointerSelection); document.removeEventListener('touchcancel', cancelPointerSelection); document.removeEventListener('mouseup', detect); document.removeEventListener('keyup', detect); document.removeEventListener('selectionchange', scheduleDetect); window.removeEventListener('amadeus:editor-selection', fromEditor); root.unmount(); host.remove(); };
+  window.addEventListener('amadeus:annotation-submit', beginSubmission);
+  window.addEventListener('blur', outsideFrameFocus);
+  return () => { clearTimeout(selectionTimer); document.removeEventListener('pointerdown', outsidePointerDown, true); document.removeEventListener('touchstart', outsidePointerDown, true); document.removeEventListener('pointerup', finishPointerSelection); document.removeEventListener('touchend', finishPointerSelection); document.removeEventListener('pointercancel', cancelPointerSelection); document.removeEventListener('touchcancel', cancelPointerSelection); document.removeEventListener('mouseup', detect); document.removeEventListener('keyup', detect); document.removeEventListener('keydown', beginKeyboardSelection); document.removeEventListener('selectionchange', scheduleDetect); window.removeEventListener('amadeus:editor-selection', fromEditor); window.removeEventListener('amadeus:annotation-submit', beginSubmission); window.removeEventListener('blur', outsideFrameFocus);root.unmount();host.remove(); };
 }
 export function apply(ctx) {
   setAmadeusLocale(ctx.locale);
+  ctx.effect(() => {
+    const previous = globalThis.__amadeusAnnotationContent;
+    const previousBubble = globalThis.__amadeusAnnotationBubble;
+    const previousReference = globalThis.__amadeusAnnotationReferenceText;
+    const display = content => annotationDisplayContent(content, count => `${count} ${tr('条注释', 'annotations')}`);
+    globalThis.__amadeusAnnotationContent = display;
+    globalThis.__amadeusAnnotationBubble = renderAnnotatedBubble;
+    globalThis.__amadeusAnnotationReferenceText = renderAnnotationReferenceText;
+    return () => { if (globalThis.__amadeusAnnotationContent === display) globalThis.__amadeusAnnotationContent = previous;if (globalThis.__amadeusAnnotationBubble === renderAnnotatedBubble) globalThis.__amadeusAnnotationBubble = previousBubble;if (globalThis.__amadeusAnnotationReferenceText === renderAnnotationReferenceText) globalThis.__amadeusAnnotationReferenceText = previousReference; };
+  });
   ctx.effect(() => ctx.slots.inject('settings.trigger', () => installConnectionLatency(ctx)));
   const store = createAnnotationStore(sessionStorage);
   // 0.1.6-alpha.2 removed the single "current" session; capture the session the
@@ -501,12 +555,12 @@ export function apply(ctx) {
     function install() {
       for (const entry of ctx.slots.entries('conversation.chat.node')) {
         const kind = entry.options.key;
-        if (!['user', 'steering', 'assistant-step'].includes(kind) || installed.has(kind) || entry.options.registrant?.startsWith('amadeus-annotated-')) continue;
+        if (!['user', 'steering', 'assistant-step'].includes(kind) || installed.has(kind) || entry.registrant?.startsWith('amadeus-annotated-')) continue;
         installed.add(kind);
         const Native = entry.component;
         if (kind === 'assistant-step') {
           const WrappedAssistant = props => { if (props.sessionId) activeSession.id = props.sessionId; return <AssistantWithAnnotationLinks {...props} Native={Native} openAnnotation={annotation => openAnnotation(annotation, props.sessionId)} />; };
-          disposers.push(ctx.slots.register({ ...entry.options, name: 'conversation.chat.node', key: kind, locale: entry.locale, priority: -100, registrant: 'amadeus-annotated-assistant' }, WrappedAssistant));
+          disposers.push(ctx.slots.register(annotationSlotOptions(entry, 'amadeus-annotated-assistant'), WrappedAssistant));
           continue;
         }
         const Wrapped = props => {
@@ -516,29 +570,23 @@ export function apply(ctx) {
           const amadeus = parseAnnotatedPrompt(text);
           return amadeus ? <SentAnnotations {...props} node={{ ...node, data: { ...node.data, amadeus } }} /> : <Native {...props} />;
         };
-        disposers.push(ctx.slots.register({ ...entry.options, name: 'conversation.chat.node', key: kind, locale: entry.locale, priority: -100, registrant: 'amadeus-annotated-user' }, Wrapped));
+        disposers.push(ctx.slots.register(annotationSlotOptions(entry, 'amadeus-annotated-user'), Wrapped));
       }
     }
     install(); const unsubscribe = ctx.slots.subscribe('conversation.chat.node', install);
     return () => { unsubscribe(); for (const dispose of disposers) dispose(); };
   }));
   const conversation = ctx.conversation, original = conversation.sendSession;
-  let annotationSubmissions = 0;
   ctx.effect(() => {
     conversation.sendSession = async function(session, text, attachments, mode, signal) {
       const id = session.sessionId;
       const snapshot = [...store.get(id)];
       const visibleText = stripAnnotationDraftMarker(text);
-      const annotated = snapshot.length > 0;
-      if (annotated && annotationSubmissions++ === 0) document.body.setAttribute('data-amadeus-annotation-submitting', '');
-      try {
-        const result = await original.call(this, session, serializeAnnotations(snapshot, visibleText), attachments, mode, signal);
-        if (result.kind === 'success') store.settle(id, snapshot);
-        return result;
-      } finally {
-        if (annotated) setTimeout(() => { if (--annotationSubmissions === 0) document.body.removeAttribute('data-amadeus-annotation-submitting'); }, 250);
-      }
+      if (snapshot.length) window.dispatchEvent(new CustomEvent('amadeus:annotation-submit', { detail: { sessionId: id } }));
+      const result = await original.call(this, session, serializeAnnotations(snapshot, visibleText), attachments, mode, signal);
+      if (result.kind === 'success') store.settle(id, snapshot);
+      return result;
     };
-    return () => { conversation.sendSession = original; annotationSubmissions = 0; document.body.removeAttribute('data-amadeus-annotation-submitting'); };
+    return () => { conversation.sendSession = original; };
   });
 }

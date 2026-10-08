@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, rm, stat } from 'node:fs/promises';
 import { HttpError, resolveWithin } from '../../files/src/workspace.mjs';
@@ -28,6 +29,18 @@ export async function editorFile(root, input) {
   const file = await resolveWithin(root, input);
   if (!(await stat(file)).isFile()) throw new HttpError(400, 'Only regular files can be opened in the editor');
   return file;
+}
+
+export async function pdfAnnotationSource(root, fileUri) {
+  let file;
+  try {
+    const url = new URL(fileUri);
+    if (url.protocol !== 'file:' || url.search || url.hash || (url.hostname && url.hostname !== 'localhost')) throw new Error('Invalid PDF URI');
+    file = fileURLToPath(url);
+  } catch { throw new HttpError(400, 'Invalid PDF file URI'); }
+  if (path.extname(file).toLowerCase() !== '.pdf') throw new HttpError(400, 'Only PDF selections are supported');
+  const checked = await editorFile(root, file);
+  return { path: path.relative(root, checked).split(path.sep).join('/') };
 }
 
 async function bridgeRegistration({ sessionId, root, bridgeDir }) {
