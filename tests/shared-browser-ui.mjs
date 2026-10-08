@@ -16,9 +16,13 @@ const probe = net.createServer(); await new Promise(resolve => probe.listen(0, '
 const origin = `http://127.0.0.1:${port}`;
 let submitted = '';
 const fixture = createServer((req, res) => {
+  if (req.url === '/site-icon.svg') {
+    if (!req.headers.cookie?.includes('site-icon-ready=yes')) { res.writeHead(401); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml' }); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" rx="3" fill="#2563eb"/><path d="M4 12L8 3l4 9M5.5 9h5" fill="none" stroke="white" stroke-width="1.5"/></svg>'); return;
+  }
   if (req.url.startsWith('/submitted')) submitted = new URL(req.url, 'http://fixture').searchParams.get('value');
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end('<!doctype html><meta charset="utf-8"><title>共同浏览器测试</title><h1>共同网页</h1><input id="value" style="position:absolute;left:40px;top:70px;width:400px;height:40px;font-size:24px"><button style="position:absolute;left:40px;top:140px" onclick="document.querySelector(\'h1\').textContent=document.querySelector(\'#value\').value;fetch(\'/submitted?value=\'+encodeURIComponent(document.querySelector(\'#value\').value))">提交</button>');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': 'site-icon-ready=yes; Path=/; SameSite=Lax' });
+  res.end('<!doctype html><meta charset="utf-8"><title>共同浏览器测试</title><link rel="icon" href="/site-icon.svg"><h1>共同网页</h1><input id="value" style="position:absolute;left:40px;top:70px;width:400px;height:40px;font-size:24px"><button style="position:absolute;left:40px;top:140px" onclick="document.querySelector(\'h1\').textContent=document.querySelector(\'#value\').value;fetch(\'/submitted?value=\'+encodeURIComponent(document.querySelector(\'#value\').value))">提交</button>');
 });
 fixture.listen(0, '127.0.0.1'); await once(fixture, 'listening'); const fixtureUrl = `http://127.0.0.1:${fixture.address().port}/form`;
 const username = 'fixture', password = randomBytes(24).toString('hex'); const config = path.join(directory, 'config.json');
@@ -47,6 +51,11 @@ try {
   await page.getByRole('button',{name:'AI 浏览器',exact:false}).last().click();
   const viewer=page.locator('[data-amadeus-browser]');await expect(viewer).toBeVisible();
   await expect.poll(()=>sessionId).toBeTruthy();
+  await viewer.locator('.amadeus-browser-page-name').evaluate(element => {
+    window.seenBrowserTitles = [element.textContent];
+    window.browserTitleObserver = new MutationObserver(() => window.seenBrowserTitles.push(element.textContent));
+    window.browserTitleObserver.observe(element, { childList: true, characterData: true, subtree: true });
+  });
   const call=async(name,args,turn)=>{const response=await fetch(origin+'/_test/browser',{method:'POST',headers:{Authorization:'Basic '+Buffer.from(username+':'+password).toString('base64')},body:JSON.stringify({session:sessionId,name,args,turn})});const body=await response.text();assert.equal(response.status,200,body);return body;};
   await page.getByRole('button',{name:'收起右侧边栏',exact:true}).click();
   await call('browser_navigate',{url:fixtureUrl},1);
@@ -55,6 +64,14 @@ try {
   await expect(viewer.getByRole('textbox',{name:'AI 浏览器地址'})).toHaveAttribute('readonly','');
   await expect(viewer.getByRole('button',{name:'用户接管',exact:true})).toHaveCount(0);
   await expect(viewer.getByRole('status')).toHaveCount(0,{timeout:20000});
+  await expect(viewer.locator('img.amadeus-browser-favicon')).toHaveAttribute('src', /^data:image\/svg\+xml;base64,/, { timeout: 10000 });
+  await expect.poll(() => viewer.locator('img.amadeus-browser-favicon').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect(viewer.locator('.amadeus-browser-page-name')).toHaveText('共同浏览器测试');
+  await call('browser_evaluate', { function: '() => { document.title = ""; return document.title; }' });
+  await expect(viewer.locator('.amadeus-browser-page-name')).not.toHaveText(fixtureUrl);
+  await call('browser_evaluate', { function: '() => { document.title = "跳转后的标题"; return document.title; }' });
+  await expect(viewer.locator('.amadeus-browser-page-name')).toHaveText('跳转后的标题');
+  assert.equal(await page.evaluate(() => window.seenBrowserTitles.some(title => /^https?:\/\//.test(title))), false);
   assert.equal(await viewer.locator('canvas').evaluate(canvas=>getComputedStyle(canvas).pointerEvents),'none');
   assert.match(await call('browser_evaluate',{function:'() => document.querySelector("#value").value'}),/Result/);
   const rejected=await fetch(origin+'/amadeus/browser/command?session='+encodeURIComponent(sessionId),{method:'POST',headers:{Authorization:'Basic '+Buffer.from(username+':'+password).toString('base64')},body:JSON.stringify({action:'text',text:'must not reach browser'})});assert.equal(rejected.status,403);

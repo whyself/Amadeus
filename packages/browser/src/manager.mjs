@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { chromium } from './runtime.mjs';
+import { readPageMetadata } from './page-metadata.mjs';
 
 export class BrowserError extends Error {
   constructor(message, status = 409) { super(message); this.status = status; }
@@ -76,6 +77,7 @@ export class BrowserManager extends EventEmitter {
     const update = () => { this.publish(entry); };
     page.on('framenavigated', frame => { if (frame === page.mainFrame()) update(); });
     page.on('domcontentloaded', update);
+    page.on('load', update);
     page.once('close', () => { entry.pages.delete(targetId); if (entry.selected === targetId) entry.selected = entry.pages.keys().next().value || null; this.publish(entry, { persist: false }); });
     update();
   }
@@ -85,16 +87,29 @@ export class BrowserManager extends EventEmitter {
     if (!entry.pages.has(entry.selected)) entry.selected = entry.pages.keys().next().value || null;
   }
   state(entry) {
-    return { sessionId: entry.sessionId, browserId: entry.browserId, generation: entry.generation, revision: entry.stateRevision, selectedTargetId: entry.selected, failed: !!entry.failed, reveal: entry.reveal, pages: [...entry.pages].filter(([, p]) => !p.isClosed()).map(([targetId, p]) => ({ targetId, url: p.url(), title: entry.titles?.get(targetId) || p.url() || 'Browser' })) };
+    return { sessionId: entry.sessionId, browserId: entry.browserId, generation: entry.generation, revision: entry.stateRevision, selectedTargetId: entry.selected, failed: !!entry.failed, reveal: entry.reveal, pages: [...entry.pages].filter(([, p]) => !p.isClosed()).map(([targetId, p]) => ({ targetId, url: p.url(), title: entry.metadata?.get(targetId)?.title || '', favicon: entry.metadata?.get(targetId)?.favicon || null })) };
   }
   publish(entry, { persist = true } = {}) {
     if (this.entries.get(entry.sessionId) !== entry) return;
     entry.stateRevision++; this.emit('state', this.state(entry));
-    for (const [id, page] of entry.pages) if (!page.isClosed()) page.title().then(title => {
-      if (this.entries.get(entry.sessionId) !== entry) return;
-      entry.titles ??= new Map();
-      if (entry.titles.get(id) !== title) { entry.titles.set(id, title); entry.stateRevision++; this.emit('state', this.state(entry)); }
-    }).catch(() => {});
+    entry.metadata ??= new Map(); entry.metadataPending ??= new Set();
+    for (const [id, page] of entry.pages) if (!page.isClosed() && !entry.metadataPending.has(id)) {
+      entry.metadataPending.add(id);
+      const pageUrl = page.url(), previous = entry.metadata.get(id);
+      void readPageMetadata(page, previous, metadata => {
+        if (this.entries.get(entry.sessionId) !== entry || page.isClosed() || page.url() !== pageUrl || metadata.url !== pageUrl) return;
+        if (entry.metadata.get(id)?.title !== metadata.title) {
+          entry.metadata.set(id, { ...previous, title: metadata.title }); entry.stateRevision++; this.emit('state', this.state(entry));
+        }
+      }).then(metadata => {
+        if (this.entries.get(entry.sessionId) !== entry || page.isClosed() || page.url() !== pageUrl) return;
+        entry.metadata.set(id, metadata);
+        if (previous?.title !== metadata.title || previous?.favicon !== metadata.favicon) { entry.stateRevision++; this.emit('state', this.state(entry)); }
+      }).catch(() => {}).finally(() => {
+        entry.metadataPending.delete(id);
+        if (!page.isClosed() && page.url() !== pageUrl && this.entries.get(entry.sessionId) === entry) this.publish(entry, { persist: false });
+      });
+    }
     const pages = [...entry.pages.values()].filter(p => !p.isClosed() && /^https?:/.test(p.url())).map(p => ({ url: p.url() }));
     // A crashing target can disappear before the process exit notification.
     // Keep the last nonempty checkpoint; explicit page-close tools clear it below.

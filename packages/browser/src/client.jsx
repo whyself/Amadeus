@@ -15,6 +15,11 @@ function publish(state) {
 }
 const subscribe = notify => { listeners.add(notify); return () => listeners.delete(notify); };
 function BrowserTitle() { useAmadeusLocale(); return tr('AI 浏览器', 'AI Browser'); }
+function PageIcon({ source }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [source]);
+  return source && !failed ? <img className="amadeus-browser-favicon" src={source} alt="" draggable={false} onError={() => setFailed(true)} /> : <svg className="amadeus-browser-favicon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true"><circle cx="8" cy="8" r="6" /><ellipse cx="8" cy="8" rx="2.6" ry="6" /><path d="M2 8h12M3 4.5h10M3 11.5h10" /></svg>;
+}
 
 export function BrowserTab({ sessionId, useTabInfo }) {
   useAmadeusLocale();
@@ -64,7 +69,7 @@ export function BrowserTab({ sessionId, useTabInfo }) {
     } catch (error) { setError(error.message); } finally { setRetrying(false); }
   }
   return <section className="amadeus-browser" data-amadeus-browser>
-    <div className="amadeus-browser-toolbar"><span className="amadeus-browser-page-label" title={page?.title || tr('AI 浏览器', 'AI Browser')}>{page?.title && page.title !== 'about:blank' ? page.title : tr('AI 浏览器', 'AI Browser')}</span><input aria-label={tr('AI 浏览器地址', 'AI browser address')} readOnly value={page?.url || ''} placeholder={tr('等待 AI 打开网页', 'Waiting for AI to open a page')} /></div>
+    <div className="amadeus-browser-toolbar"><span className="amadeus-browser-page-label" title={page?.title || tr('AI 浏览器', 'AI Browser')}><PageIcon source={page?.favicon} /><span className="amadeus-browser-page-name">{page?.title && page.title !== 'about:blank' ? page.title : tr('AI 浏览器', 'AI Browser')}</span></span><input aria-label={tr('AI 浏览器地址', 'AI browser address')} readOnly value={page?.url || ''} placeholder={tr('等待 AI 打开网页', 'Waiting for AI to open a page')} /></div>
     {error && <div role="alert" className="amadeus-browser-notice">{error}</div>}
     {state?.failed && <div role="alert" className="amadeus-browser-notice">{tr('浏览器已退出。', 'Browser exited.')} <button disabled={retrying} onClick={retry}>{retrying ? tr('连接中…', 'Connecting…') : tr('重新连接', 'Reconnect')}</button></div>}
     <div className="amadeus-browser-viewport">
