@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { createCodeServerProxy } from './proxy.mjs';
 import { sessionRoot, json, routeErrors, HttpError } from '../../files/src/workspace.mjs';
-import { prepareWorkspace, editorFile, bridgeCommand, bridgeEvents } from './workspace.mjs';
+import { prepareWorkspace, editorFile, pdfAnnotationSource, bridgeCommand, bridgeEvents } from './workspace.mjs';
 import { createBackgroundRefresh } from './background-refresh.mjs';
 
 export const inject = ['webServer', 'sessions', 'fs'];
-const actions = new Set(['open', 'selection', 'status', 'documents', 'reload', 'theme', 'fontSize']);
+const actions = new Set(['open', 'selection', 'pdfSource', 'status', 'documents', 'reload', 'theme', 'fontSize']);
 
 function waitForResponse(res) {
   return new Promise(resolve => {
@@ -78,6 +78,10 @@ export async function apply(ctx, config = {}) {
     let command;
     try { command = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new HttpError(400, 'Invalid editor command'); }
     if (!command || !actions.has(command.action)) throw new HttpError(400, 'Unknown editor command');
+    if (command.action === 'pdfSource') {
+      if (typeof command.fileUri !== 'string' || !command.fileUri || command.fileUri.length > 8192) throw new HttpError(400, 'PDF file URI is required');
+      return json(res, 200, await pdfAnnotationSource(root, command.fileUri));
+    }
     // Construct a new object, never forward arbitrary caller-supplied commands.
     const input = { action: command.action };
     if (input.action === 'open') {

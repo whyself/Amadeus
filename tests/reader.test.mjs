@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { annotationSourceLink, createAnnotationStore, findAnnotationReferences, findAnnotationSource, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
+import { annotationDisplayContent, annotationSlotOptions, annotationSourceLink, createAnnotationStore, findAnnotationReferences, findAnnotationSource, linkAnnotationReferences, locateConversationQuote, serializeAnnotations, parseAnnotatedPrompt } from '../packages/reader/src/annotations.mjs';
+
+test('shadowed chat slots retain native injection, selector and store bindings', () => {
+  const inject = () => ({ hooks: { presentation: {} } }), select = props => props.node, store = () => ({});
+  const entry = { options: { key: 'assistant-step' }, locale: 'chat', inject, select, store };
+  const options = annotationSlotOptions(entry, 'amadeus-annotated-assistant');
+  assert.equal(options.inject, inject); assert.equal(options.select, select); assert.equal(options.store, store);
+  assert.equal(options.key, 'assistant-step'); assert.equal(options.priority, -100); assert.equal(options.locale, 'chat');
+});
+
+test('pending annotation display preserves request and attachments without mutating the wire envelope', () => {
+  const text = serializeAnnotations([{text:'private quote',annotation:'explain',source:{kind:'file',path:'paper.pdf',pageStart:2}}],'visible question');
+  const attachment = {type:'file',attachment:{name:'notes.txt'}}, ordinary = {type:'text',text:'plain'};
+  const content = [{type:'text',text},attachment,ordinary];
+  const display = annotationDisplayContent(content, count=>`${count} 条注释`);
+  assert.deepEqual(display,[{type:'text',text:'1 条注释\n\nvisible question'},attachment,ordinary]);
+  assert.equal(content[0].text,text);
+  assert.ok(parseAnnotatedPrompt(content[0].text));
+  assert.equal(display[1],attachment);assert.equal(display[2],ordinary);
+});
 
 test('assistant references resolve a turn-opening annotation outside the turn index', () => {
   const user = { kind: 'user', anchorSeq: 2, data: { content: [{ type: 'text', text: serializeAnnotations([{ text: 'quote', annotation: 'explain', source: { kind: 'file', path: 'paper.pdf', pageStart: 3 } }], '') }] } };
@@ -64,6 +83,7 @@ test('finds annotation references for DOM decoration without touching markdown l
     { start: 27, end: 30, number: 4 },
   ]);
   assert.deepEqual(findAnnotationReferences('[注释 1](https://example.com) 与注释 5', 4), []);
+  assert.deepEqual(findAnnotationReferences('[注释 1][missing]', 4), [], 'explicit reference-style link syntax is preserved');
 });
 
 test('locates the original conversation selection by offsets and surrounding context', () => {

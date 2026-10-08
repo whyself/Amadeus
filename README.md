@@ -106,7 +106,7 @@ Amadeus 内置可安装 PWA。使用 `http://127.0.0.1:3080` 或配置 HTTPS 反
 1. 在 DSH 中选工作区，侧栏的“工作区文件”列出 `/workspace` 内容。点击文件得到原生预览；点文件旁的编辑按钮才进入 code-server。
 2. 编辑器内 `Ctrl/Cmd + S` 保存。选中文字后点击“＋ 添加到对话”，填写可选评论并用蓝色对勾提交。`Ctrl/Cmd` + `+`、`-`、`0` 只调整代码字号。
 3. Markdown 预览是 code-server 内置功能；`Ctrl+Shift+V` 打开预览，`Ctrl+K` 后按 `V` 打开侧边预览。code-server 可安装兼容的 VS Code 扩展。
-4. LaTeX Workshop 默认使用 `latexmk -xelatex`。`Ctrl+Alt+B` 编译，`Ctrl+Alt+V` 查看 PDF；多文件项目可用 `% !TEX root = ../main.tex` 指定主文件。自动构建默认关闭。
+4. LaTeX Workshop 默认使用 `latexmk -xelatex`。`Ctrl+Alt+B` 编译，`Ctrl+Alt+V` 查看 PDF；PDF 文字层选区可通过“添加到对话”创建注释，保留实际 PDF 路径与页码。多文件项目可用 `% !TEX root = ../main.tex` 指定主文件。自动构建默认关闭。
 5. DSH 设置中的“外观”和“编辑器外观”分别控制两套主题。左侧“收起对话”可让右侧工作台获得更多空间。
 
 ## 维护与排查
@@ -144,11 +144,15 @@ Cookie 和最近 URL 按对话保存在 `<DSH_HOME>/browser/`，Docker 中沿用
 
 Office 文件通过 DSH 原生 LibreOffice 服务转成预览 PDF；扫描件没有可选择的文字层。Amadeus 按单用户工作台设计，登录用户可操作工作区文件和容器内终端。
 
+回答支持 Markdown，以及无属性的 `<u>`、`<sub>`、`<sup>` 和 `<br>` 行内格式；代码块中的标签保留原文。注释引用使用随浅色、深色主题切换的蓝色无框样式。
+
 ## 开发与发布产物
 
 非 Docker 开发需要 Node.js 24+，并自行启动 code-server、安装 `packages/editor/extension` 中的桥接扩展及 LaTeX Workshop；[非 Docker 配置示例](amadeus.example.yml)列出服务参数。
 
 启动 code-server 前，对固定的 `4.104.2` 安装目录执行 `node scripts/patch-code-server.mjs <code-server安装目录>`，然后重启 code-server 并刷新编辑器页面。Docker 构建自动完成此步骤。补丁安装按文件更新文档模型的内部命令，未知 workbench 构建会拒绝修改。
+
+LaTeX Workshop 的 PDF 选区注释还需对固定的 `10.9.0` 扩展目录执行 `node scripts/patch-latex-workshop.mjs <LaTeX-Workshop扩展目录>`。Docker 同时安装此补丁；非 Docker 部署在扩展更新或重装后需重新执行，并重启 code-server。
 
 ~~~bash
 npm ci
@@ -157,6 +161,7 @@ npm run build
 npm run test:editor-browser
 npm run test:files-browser
 npm run test:annotations-browser
+node tests/markdown-browser.mjs
 npm run test:browser-compat
 npm run pack:plugins
 ~~~

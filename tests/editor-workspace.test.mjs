@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { mkdtemp, readFile, writeFile, stat, rm, mkdir } from 'node:fs/promises';
-import { prepareWorkspace, editorFile, bridgeCommand, workspaceId } from '../packages/editor/src/workspace.mjs';
+import { prepareWorkspace, editorFile, pdfAnnotationSource, bridgeCommand, workspaceId } from '../packages/editor/src/workspace.mjs';
 
 test('generated workspaces are stable, session isolated, and never rewrite user project settings', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'amadeus-editor-'));
@@ -24,4 +25,10 @@ test('generated workspaces are stable, session isolated, and never rewrite user 
   await assert.rejects(bridgeCommand({ sessionId: 's1', root: project, bridgeDir: stateDir, command: { action: 'status' } }), error => error.status === 503);
   await writeFile(path.join(stateDir, `${workspaceId('s1')}.json`), JSON.stringify({ port: 1234, token: 'a'.repeat(64), workspace: '/different-project' }));
   await assert.rejects(bridgeCommand({ sessionId: 's1', root: project, bridgeDir: stateDir, command: { action: 'status' }, request: () => { throw new Error('must not be called'); } }), error => error.status === 503);
+  const pdf = path.join(project, '中文 # file.pdf'); await writeFile(pdf, '%PDF-1.7');
+  assert.deepEqual(await pdfAnnotationSource(project, pathToFileURL(pdf).href), { path: '中文 # file.pdf' });
+  await assert.rejects(pdfAnnotationSource(project, pathToFileURL(path.join(root, 'outside.pdf')).href), error => error.status === 403);
+  await assert.rejects(pdfAnnotationSource(project, pathToFileURL(path.join(project, 'missing.pdf')).href), error => error.status === 404);
+  await assert.rejects(pdfAnnotationSource(project, pathToFileURL(path.join(project, '中文 # file.tex')).href), error => error.status === 400);
+  for (const uri of ['https://example.com/paper.pdf', 'file:///paper.pdf#page=1', 'not a URI']) await assert.rejects(pdfAnnotationSource(project, uri), error => error.status === 400);
 });

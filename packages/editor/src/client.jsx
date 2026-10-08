@@ -4,6 +4,7 @@ import { parseEditableAddress } from '../../reader/src/file-address.mjs';
 import { acquireBrowserIdentity } from './browser-identity.mjs';
 import { acquireWorkbenchInstance, attachWorkbench, retainWorkbench, disposeWorkbench, disposeWorkbenches, getWorkbenchFrame } from './frame-cache.mjs';
 import { createWorkspaceSync } from './workspace-sync.mjs';
+import { installPdfSelectionBridge } from './pdf-selection.mjs';
 import styles from './editor.css';
 import { installEditorAppearance, resolvedEditorAppearance } from './appearance.jsx';
 import { setAmadeusLocale, useAmadeusLocale, tr } from '../../reader/src/locale.mjs';
@@ -98,6 +99,8 @@ export function EditorTab({ useTabInfo, sessionId }) {
   const workspaceSync = useRef(null);
   const selectionHovered = useRef(false);
   const suppressedSelection = useRef(null);
+  const pdfSelection = useRef(null), pdfActive = useRef(false);
+  const selectionIdentity = selected => JSON.stringify([selected.path, selected.text, selected.lineStart, selected.lineEnd, selected.pageStart, selected.pageEnd]);
   useEffect(() => { suppressedSelection.current = null; }, [retry]);
   const fontSize = useRef(16);
   const holder = useRef(), frame = useRef();
@@ -238,16 +241,43 @@ export function EditorTab({ useTabInfo, sessionId }) {
   }, [ready, session, browserId, instance]);
 
   useEffect(() => {
+    if (!ready || !loaded || !instance || tab.visible === false) { pdfSelection.current = null; pdfActive.current = false; return; }
+    const getFrame = () => getWorkbenchFrame(closeKey(session, tab.id));
+    const stop = installPdfSelectionBridge({ getFrame, resolveSource: fileUri => command('pdfSource', { fileUri }),
+      onSelection: selected => {
+        pdfActive.current = true; pdfSelection.current = selected;
+        if (suppressedSelection.current === selectionIdentity(selected)) return;
+        suppressedSelection.current = null; setSelection(selected);
+      },
+      onClear: () => {
+        pdfActive.current = true; pdfSelection.current = null;
+        suppressedSelection.current = null;
+        setSelection(null);
+      },
+    });
+    let doc;
+    try { doc = getFrame()?.contentDocument; } catch {}
+    const activateTextEditor = event => {
+      if (!event.target?.closest?.('iframe')) { stop.invalidate(); pdfActive.current = false; pdfSelection.current = null; setSelection(null); }
+    };
+    doc?.addEventListener('pointerdown', activateTextEditor, true);
+    doc?.addEventListener('focusin', activateTextEditor, true);
+    const switchEditor = event => { if ((event.ctrlKey || event.metaKey) && ['Tab', 'PageUp', 'PageDown'].includes(event.key)) activateTextEditor(event); };
+    doc?.addEventListener('keydown', switchEditor, true);
+    return () => { stop.dispose(); pdfSelection.current = null; pdfActive.current = false; doc?.removeEventListener('pointerdown', activateTextEditor, true); doc?.removeEventListener('focusin', activateTextEditor, true); doc?.removeEventListener('keydown', switchEditor, true); };
+  }, [ready, loaded, tab.visible, session, tab.id, browserId, instance]);
+
+  useEffect(() => {
     if (!ready || !loaded || !instance || tab.visible === false) { selectionHovered.current = false; setSelection(null); return; }
     let stopped = false, timer;
     const inspect = async () => {
       if (stopped) return;
-      if (!document.hidden) {
+      if (!document.hidden && !pdfActive.current) {
         try {
           const result = await command('selection');
-          if (!stopped) {
+          if (!stopped && !pdfActive.current) {
             if (result.text?.trim()) {
-              const identity = JSON.stringify([result.path, result.text, result.lineStart, result.lineEnd]);
+              const identity = selectionIdentity(result);
               if (suppressedSelection.current === identity) setSelection(null);
               else {
                 suppressedSelection.current = null;
@@ -265,7 +295,7 @@ export function EditorTab({ useTabInfo, sessionId }) {
               if (!selectionHovered.current) setSelection(null);
             }
           }
-        } catch { if (!stopped && !selectionHovered.current) setSelection(null); }
+        } catch { if (!stopped && !pdfActive.current && !selectionHovered.current) setSelection(null); }
       }
       if (!stopped) timer = setTimeout(inspect, 450);
     };
@@ -283,11 +313,15 @@ export function EditorTab({ useTabInfo, sessionId }) {
     if (!selected?.text) return;
     setError('');
     try {
-      const detail = { sessionId: session, text: selected.text, x: selected.left, y: selected.top + 28, source: { kind: 'file', path: selected.path, lineStart: selected.lineStart, lineEnd: selected.lineEnd } };
+      const source = selected.format === 'pdf'
+        ? { kind: 'file', path: selected.path, format: 'pdf', pageStart: selected.pageStart, pageEnd: selected.pageEnd, pageCount: selected.pageCount }
+        : { kind: 'file', path: selected.path, lineStart: selected.lineStart, lineEnd: selected.lineEnd };
+      const detail = { sessionId: session, text: selected.text, x: selected.left, y: selected.top + 28, source };
       window.dispatchEvent(new CustomEvent('amadeus:editor-selection', { detail }));
       if (!detail.handled) throw new Error(tr('注释输入尚未就绪。', 'Annotation input is unavailable.'));
       if (detail.error) throw new Error(detail.error);
-      suppressedSelection.current = JSON.stringify([selected.path, selected.text, selected.lineStart, selected.lineEnd]);
+      suppressedSelection.current = selectionIdentity(selected);
+      selected.pdfWindow?.postMessage({ type: 'amadeus:pdf-selection-clear' }, window.location.origin);
       selectionHovered.current = false;
       setSelection(null);
     } catch (err) { setError(err.message); }

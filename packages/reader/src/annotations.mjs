@@ -33,6 +33,13 @@ export function parseAnnotatedPrompt(text) {
     return { annotations, prompt: text.slice(at + ENVELOPE_SEPARATOR.length) };
   } catch { return null; }
 }
+export function annotationDisplayContent(content, label) {
+  return content.map(block => {
+    if (block.type !== 'text') return block;
+    const envelope = parseAnnotatedPrompt(block.text);
+    return envelope ? { ...block, text: [label(envelope.annotations.length), envelope.prompt].filter(Boolean).join('\n\n') } : block;
+  });
+}
 // Turn-opening user messages can precede turn/start and therefore do not appear
 // in locations.getTurn(). Read the ordered chat nodes by their event position.
 // A later plain user message replaces the annotation context as well.
@@ -44,6 +51,12 @@ export function findAnnotationSource(snapshot, assistant) {
     if (!latest || node.anchorSeq > latest.anchorSeq) latest = node;
   }
   return latest;
+}
+// StoredEntry keeps runtime bindings outside `options`. Copying options alone
+// shadows the native renderer without its presentation hooks and selectors.
+export function annotationSlotOptions(entry, registrant) {
+  return { ...entry.options, name: 'conversation.chat.node', locale: entry.locale,
+    inject: entry.inject, select: entry.select, store: entry.store, priority: -100, registrant };
 }
 export function linkAnnotationReferences(text, maximum = Number.POSITIVE_INFINITY) {
   const linked = number => Number(number) >= 1 && Number(number) <= maximum ? `[注释 ${Number(number)}](#amadeus-annotation-${Number(number)})` : null;
@@ -57,7 +70,7 @@ export function findAnnotationReferences(text, maximum = Number.POSITIVE_INFINIT
   for (const match of text.matchAll(pattern)) {
     const number = Number(match[1] ?? match[2]);
     const bracketed = match[1] !== undefined;
-    if (number < 1 || number > maximum || (bracketed && text[match.index + match[0].length] === '(')) continue;
+    if (number < 1 || number > maximum || (bracketed && ['(', '['].includes(text[match.index + match[0].length]))) continue;
     references.push({ start: match.index, end: match.index + match[0].length, number });
   }
   return references;

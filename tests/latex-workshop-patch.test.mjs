@@ -54,6 +54,9 @@ test('extension patch validates version and every file before modifying any file
   await assert.rejects(patchLatexWorkshop(dir), /Unsupported/);
   assert.equal(await readFile(first, 'utf8'), original);
   await writeFile(path.join(dir, 'package.json'), JSON.stringify(manifest));
-  assert.deepEqual(await patchLatexWorkshop(dir), { version: '10.9.0', changedFiles: 3 });
+  assert.deepEqual(await patchLatexWorkshop(dir), { version: '10.9.0', changedFiles: 4 });
+  const bridge = await readFile(path.join(dir, 'out/viewer/amadeus-selection.mjs'), 'utf8');
+  assert.match(bridge, /amadeus:pdf-selection/);
+  assert.match(await readFile(first, 'utf8'), /installPdfViewerSelection/);
   assert.deepEqual(await patchLatexWorkshop(dir), { version: '10.9.0', changedFiles: 0 });
 });

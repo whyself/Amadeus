@@ -17,6 +17,7 @@ const EMBEDDED_PDF_PRINT_BLOCK = `if (window.parent !== window) {
       event.stopImmediatePropagation();
       return;
     }`;
+const PDF_SELECTION_IMPORT = "import { installPdfViewerSelection } from './amadeus-selection.mjs';\ninstallPdfViewerSelection({ getFileUri: () => utils.parseURL().pdfFileUri });";
 
 function patchEmbeddedPdfPrintShortcut(file, source) {
   if (file !== 'viewer/viewer.mjs' || source.includes(EMBEDDED_PDF_PRINT_BLOCK)) return source;
@@ -46,7 +47,9 @@ export function patchViewerSource(file, source) {
   // viewer lives in code-server's nested webview, so the outer Amadeus iframe
   // cannot cancel that shortcut. Cancel it here while keeping the viewer's
   // explicit Print button available.
-  return patchEmbeddedPdfPrintShortcut(file, result);
+  result = patchEmbeddedPdfPrintShortcut(file, result);
+  if (file === 'out/viewer/latexworkshop.js' && !result.includes(PDF_SELECTION_IMPORT)) result += `\n${PDF_SELECTION_IMPORT}\n`;
+  return result;
 }
 
 export async function patchLatexWorkshop(directory) {
@@ -60,6 +63,9 @@ export async function patchLatexWorkshop(directory) {
     const after = patchViewerSource(file, before);
     if (after !== before) patches.push({ filename, after });
   }
+  const filename = path.join(directory, 'out/viewer/amadeus-selection.mjs');
+  const after = await readFile(new URL('../packages/editor/src/pdf-viewer-selection.mjs', import.meta.url), 'utf8');
+  if (await readFile(filename, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error; }) !== after) patches.push({ filename, after });
   for (const { filename, after } of patches) await writeFile(filename, after);
   return { version: manifest.version, changedFiles: patches.length };
 }

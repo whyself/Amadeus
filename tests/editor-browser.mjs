@@ -2,6 +2,7 @@
 // Uses a fake editor iframe/API; does not verify code-server or Docker deployment.
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { chromium, webkit, expect } from '@playwright/test';
 
@@ -60,11 +61,18 @@ createRoot(document.getElementById('root')).render(<Harness/>);`,
   } }],
 });
 const requests = [], loads = [];
-let dirty = false, fontSize = 16, selectionText = 'Selected passage';
+const pdfBridge = await readFile('packages/editor/src/pdf-viewer-selection.mjs', 'utf8');
+let dirty = false, fontSize = 16, selectionText = 'Selected passage', pdfDelay = 0;
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost');
   const json = body => { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(body)); };
   if (url.pathname === '/bundle.js') { response.writeHead(200, { 'Content-Type': 'text/javascript' }); response.end(result.outputFiles[0].contents); return; }
+  if (url.pathname === '/pdf-bridge.mjs') { response.writeHead(200, { 'Content-Type': 'text/javascript' }); response.end(pdfBridge); return; }
+  if (url.pathname === '/pdf-wrapper') { response.end('<iframe title="PDF" style="width:90%;height:350px" src="/pdf-viewer"></iframe>'); return; }
+  if (url.pathname === '/pdf-viewer') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end('<div class="page" data-page-number="2"><div class="textLayer"><span>First PDF page</span></div></div><div class="page" data-page-number="3"><div class="textLayer"><span>Second PDF page</span></div></div><script type="module">import {installPdfViewerSelection} from "/pdf-bridge.mjs";window.PDFViewerApplication={pagesCount:10};installPdfViewerSelection({getFileUri:()=>"file:///workspace/paper.pdf"});window.bridgeReady=true;</script>'); return;
+  }
   if (url.pathname === '/amadeus/editor/workspace') {
     requests.push({ type: 'workspace', instance: url.searchParams.get('instance') });
     json({ url: `/amadeus/code/?${url.searchParams}` }); return;
@@ -84,12 +92,13 @@ const server = http.createServer(async (request, response) => {
       response.end(JSON.stringify({ error: 'File or directory not found' })); return;
     }
     if (command.action === 'fontSize') { if (command.size !== undefined) fontSize = command.size; json({ size: fontSize }); return; }
+    if (command.action === 'pdfSource') { assert.equal(command.fileUri, 'file:///workspace/paper.pdf'); if (pdfDelay) await new Promise(resolve => setTimeout(resolve,pdfDelay)); json({path:'paper.pdf'}); return; }
     json(command.action === 'status' ? { dirty } : command.action === 'selection' ? {text: selectionText, path: 'b.tex', lineStart: 1, lineEnd: 1} : { opened: true }); return;
   }
   if (url.pathname === '/amadeus/code/') {
     loads.push(url.searchParams.get('instance'));
     response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
-    response.end('<!doctype html><title>Fake editor fixture</title><p>Fake code-server frame</p>'); return;
+    response.end('<!doctype html><title>Fake editor fixture</title><div class="monaco-editor" tabindex="0">Fake code-server frame</div>'); return;
   }
   response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
   response.end('<!doctype html><html><head><style>html,body,#root{height:100%;margin:0}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>');
@@ -213,6 +222,63 @@ try {
   await expect.poll(() => page.evaluate(() => window.testAnnotations.length)).toBe(1);
   assert.deepEqual(errors, []);
   console.log('PASS: missing file error, preserves working DSH selection');
+
+  const beforePdf = await page.evaluate(() => window.testAnnotations.length);
+  await page.locator('iframe').evaluate(frame => {
+    const child = frame.contentDocument.createElement('iframe'); child.src='/pdf-wrapper'; child.title='Webview'; child.style.cssText='width:90%;height:420px'; frame.contentDocument.body.append(child);
+  });
+  const pdfFrame = () => page.frames().find(frame => frame.url().endsWith('/pdf-viewer'));
+  await expect.poll(() => pdfFrame()?.evaluate(() => window.bridgeReady)).toBe(true);
+  selectionText='Old Monaco selection';
+  await expect(page.locator('.amadeus-code-selection-pill')).toBeVisible();
+  await pdfFrame().evaluate(() => document.dispatchEvent(new PointerEvent('pointerup')));
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  await pdfFrame().evaluate(() => {
+    const spans=document.querySelectorAll('.textLayer span');
+    getSelection().setBaseAndExtent(spans[1].firstChild,6,spans[0].firstChild,0);document.dispatchEvent(new KeyboardEvent('keyup'));
+  });
+  await expect(page.locator('.amadeus-code-selection-pill')).toBeVisible();
+  const firstText = await pdfFrame().locator('.textLayer span').first().boundingBox();
+  const lastText = await pdfFrame().locator('.textLayer span').last().boundingBox();
+  const pdfPill = await page.locator('.amadeus-code-selection-pill').boundingBox();
+  assert.ok(Math.abs(pdfPill.x-firstText.x)<4 && Math.abs(pdfPill.y-firstText.y-firstText.height-7)<4,'backward selection control follows the visible focus endpoint');
+  await page.waitForTimeout(550);
+  await page.locator('.amadeus-code-selection-pill').click();
+  await expect.poll(() => page.evaluate(() => window.testAnnotations.length)).toBe(beforePdf+1);
+  const pdfNote = await page.evaluate(() => window.testAnnotations.at(-1));
+  assert.match(pdfNote.text, /First PDF page/);
+  assert.deepEqual(pdfNote.source, {kind:'file',path:'paper.pdf',format:'pdf',pageStart:2,pageEnd:3,pageCount:10});
+  await expect.poll(() => pdfFrame().evaluate(() => getSelection().isCollapsed)).toBe(true);
+  await page.waitForTimeout(550);
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  await pdfFrame().evaluate(() => {
+    const spans=document.querySelectorAll('.textLayer span');document.dispatchEvent(new Event('touchstart'));getSelection().setBaseAndExtent(spans[0].firstChild,0,spans[1].firstChild,6);document.dispatchEvent(new Event('touchend'));
+  });
+  await expect(page.locator('.amadeus-code-selection-pill')).toBeVisible();
+  await page.locator('iframe').evaluate(frame=>frame.contentDocument.querySelector('iframe[title="Webview"]').parentElement.style.visibility='hidden');
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  await page.locator('iframe').evaluate(frame=>frame.contentDocument.querySelector('iframe[title="Webview"]').parentElement.style.visibility='');
+  await pdfFrame().evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await expect(page.locator('.amadeus-code-selection-pill')).toBeVisible();
+  await pdfFrame().evaluate(() => {getSelection().removeAllRanges();document.dispatchEvent(new KeyboardEvent('keyup'));});
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  const pdfRequests = requests.filter(r=>r.action==='pdfSource').length;
+  pdfDelay=600;selectionText='';
+  await pdfFrame().evaluate(() => {
+    const text=document.querySelector('.textLayer span').firstChild;getSelection().setBaseAndExtent(text,0,text,5);document.dispatchEvent(new KeyboardEvent('keyup'));
+  });
+  await expect.poll(()=>requests.filter(r=>r.action==='pdfSource').length).toBe(pdfRequests+1);
+  await page.locator('iframe').evaluate(frame=>frame.contentDocument.querySelector('.monaco-editor').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})));
+  await page.waitForTimeout(750);
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  pdfDelay=0;
+  await page.evaluate(() => window.postMessage({type:'amadeus:pdf-selection',selection:{fileUri:'file:///workspace/paper.pdf',text:'untrusted',pageStart:1,pageEnd:1,pageCount:10}},location.origin));
+  await page.waitForTimeout(150);
+  await expect(page.locator('.amadeus-code-selection-pill')).toHaveCount(0);
+  selectionText='Selected passage';
+  await page.reload();
+  await expect(page.locator('.amadeus-code-selection-pill')).toBeVisible();
+  console.log('PASS: nested backward PDF selection overrides stale Monaco text, preserves pages, clears after acceptance and rejects unrelated windows');
 
   await page.evaluate(() => window.testNavigate('deleted.tex'));
   await expect(page.getByRole('alert')).toContainText('File or directory not found');
