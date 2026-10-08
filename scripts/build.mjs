@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const selected = process.argv.slice(2);
-for (const name of ['login', 'files', 'reader', 'editor'].filter(name => !selected.length || selected.includes(name))) {
+for (const name of ['login', 'files', 'reader', 'editor', 'browser'].filter(name => !selected.length || selected.includes(name))) {
   const directory = path.join(root, 'packages', name);
   const pkg = JSON.parse(await readFile(path.join(directory, 'package.json'), 'utf8'));
   await mkdir(path.join(directory, 'dist'), { recursive: true });

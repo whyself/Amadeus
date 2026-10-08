@@ -1,0 +1,11 @@
+{
+  "name": "dsh-amadeus-browser",
+  "version": "1.2.0-rc.1",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "exports": { ".": "./dist/index.mjs", "./client": "./dist/client.js", "./package.json": "./package.json", "./cordis.patch.yml": "./cordis.patch.yml" },
+  "files": ["dist", "cordis.patch.yml", "NOTICE.md", "LICENSE"],
+  "dsh": { "client": { "inject": ["@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-session"], "platform": "web" }, "bundle": { "patch": "./cordis.patch.yml" } },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.5-alpha.1", "@deepseek-ai/dsh": "0.2.1-alpha.1", "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp": "0.2.1-alpha.1", "ws": "^8.21.0" },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh": { "optional": true } }
+}

@@ -16,6 +16,7 @@ Amadeus 是面向单用户的 [DeepSeek Harness（DSH）](https://github.com/dee
 | 选区注释 | 选中对话、原生文档或编辑器文本，填写可选评论后点蓝色对勾；回答里的注释引用可定位原文 |
 | 工作区 | DSH 原生文件树负责浏览与自动刷新；文件旁的按钮提供上传、ZIP 下载、重名处理和删除确认 |
 | 网页浏览器 | 在右侧侧栏打开隔离的 HTTP(S) 网页，与当前工作区并排浏览 |
+| AI 浏览器 | AI 使用 Playwright 操作网页时自动打开只读画面；原生网页浏览器仍供用户独立操作 |
 | 自动化任务 | 使用 DSH 原生 Web 自动化；标准、创造和 PTC 模式提供提醒工具，极简模式和子代理不提供 |
 | 外观 | DSH 与编辑器可分别选择浅色、深色或跟随系统；侧栏可收起中间对话 |
 
@@ -116,7 +117,30 @@ docker compose logs --tail=200 amadeus
 docker compose restart amadeus
 ~~~
 
-编辑器首次打开需等待 code-server 和 Amadeus Bridge 就绪。若页面长期显示连接错误，先查看容器日志，再检查 Docker 数据卷是否可由容器内 `node` 用户读写。`amadeus.local.yml` 中的 `playwrightMcp.enabled` 可设为 `false`，以关闭内置浏览器自动化。
+编辑器首次打开需等待 code-server 和 Amadeus Bridge 就绪。若页面长期显示连接错误，先查看容器日志，再检查 Docker 数据卷是否可由容器内 `node` 用户读写。`amadeus.local.yml` 中的 `browserUse.enabled` 可设为 `false`，以关闭内置浏览器自动化。
+
+### AI 浏览器与用户浏览器
+
+原生“浏览器”使用用户端 iframe，用户可直接浏览和填写网页。“AI 浏览器”显示当前对话的服务端 Chromium 画面，地址栏与画布只读，页面操作仍由 AI 执行。两者的实例、页面内存和登录状态独立。
+
+默认每个普通对话对应一个独立 Chromium，位于现有 Amadeus 容器内。当前对话第一次实际使用浏览器时自动展开 AI 面板；重复操作复用面板，后台对话不会抢当前侧栏。用户在本轮收起面板后，后续操作保持收起；下一轮使用浏览器时重新展开。隐藏面板停止画面传输，AI 继续执行。
+
+```yaml
+browserUse:
+  enabled: true
+  mode: launch
+  headless: true
+  # executablePath: /usr/bin/chromium
+  # toolCallTimeoutMs: 60000
+```
+
+工具名称为 `mcp__playwright-mcp__*`。接入使用 DSH 官方实验性插件固定版本 `0.2.1-alpha.1`、其 Playwright MCP `0.0.80`，以及一份保留 MIT 声明的会话连接源码适配；不修改安装后的 node_modules。适配增加每对话连接、当前页面身份和重连接口，继续复用官方 MCP 客户端、SessionResources、工具归属和串行执行。
+
+Cookie 和最近 URL 按对话保存在 `<DSH_HOME>/browser/`，Docker 中沿用 `/data` 卷。页面崩溃时可点“重新连接”；重建后页面内存和表单不会恢复，AI 应检查新状态再导航。CDP 不向宿主发布端口，画面通过现有认证 WebSocket 传输。只读接口拒绝输入、接管及用户导航命令。
+
+`mode: attach` 与 `endpoint`，或 `headless: false`，仍使用未经适配的官方提供方，当前不提供 AI 画面。旧 `playwrightMcp.enabled`、`headless`、`timeoutMs` 及默认 Chromium/isolated 设置可迁移；新 `browserUse` 优先。旧自定义命令、参数、其他浏览器引擎及 idle timeout 等选项会给出迁移错误。
+
+浏览器安装使用 `npm run setup:browsers`，Linux 系统依赖使用 `npm run setup:browsers -- --deps-only`，均解析到官方插件自己的运行时。测试：`npm run test:shared-browser-live` 验证真实浏览器和恢复；`npm run test:shared-browser-ui` 验证真实侧栏的自动打开、只读和原生 iframe 独立操作。
 
 Office 文件通过 DSH 原生 LibreOffice 服务转成预览 PDF；扫描件没有可选择的文字层。Amadeus 按单用户工作台设计，登录用户可操作工作区文件和容器内终端。
 
@@ -137,13 +161,13 @@ npm run test:browser-compat
 npm run pack:plugins
 ~~~
 
-浏览器回归默认调用已安装的 Edge，可用 `TEST_BROWSER_CHANNEL=chrome` 切换。打包结果在 `.release/`：Login、Files、Reader、Editor 四个 `1.2.0-rc.1` 插件包。GitHub 预发布附带这四个压缩包和 `SHA256SUMS`。
+浏览器回归默认调用已安装的 Edge，可用 `TEST_BROWSER_CHANNEL=chrome` 切换。开发分支打包结果在 `.release/`：Login、Files、Reader、Editor、Browser 五个 `1.2.0-rc.1` 插件包及 `SHA256SUMS`；新增 Browser 尚未随 GitHub 预发布发布。
 
 `npm run test:editor-browser` 验证组件与模拟 iframe。真实失焦刷新回归使用 `npm run test:editor-live`：先将 `AMADEUS_TEST_IMAGE` 环境变量设为本地构建的 Amadeus 镜像标签。测试自动启动独立 Docker 容器，使用 `test-results/` 下的测试工作区验证宿主机写入、原子替换和未保存修改保护，结束时删除测试容器并保留截图。
 
 后台同步不依赖浏览器焦点：扩展监听文档生命周期与目录事件，并每秒对已跟踪的打开文件执行一次元数据检查。该检查用于 Docker Desktop 等可能漏文件事件的挂载目录，不扫描整个工作区；只有发现版本变化时才读取文档。未保存修改会显示冲突，需用户明确选择重新加载才会丢弃。
 
-代码位置：`packages/login` 负责认证，`packages/files` 负责工作区文件，`packages/reader` 负责注释与原生预览增强，`packages/editor` 负责 code-server 集成。详细变更见 [CHANGELOG.md](CHANGELOG.md)。
+代码位置：`packages/login` 负责认证，`packages/files` 负责工作区文件，`packages/reader` 负责注释与原生预览增强，`packages/editor` 负责 code-server 集成，`packages/browser` 负责只读 AI 浏览器。详细变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 贡献
 

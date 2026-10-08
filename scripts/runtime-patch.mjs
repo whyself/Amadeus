@@ -24,7 +24,7 @@ export function createRuntimePatch({ root, home, config }) {
     // DSH's installation inventory excludes Amadeus's additional npm dependencies.
     // Import the official exports directly so an external DSH_HOME resolves them too.
     { id: 'amadeus-browser-use', name: officialPlugin('@deepseek-ai/dsh-browser-use') },
-    { id: 'amadeus-browser-use-playwright', name: officialPlugin(BROWSER_USE_PROVIDER), config: browserUse },
+    ...(browserUse.mode === 'launch' && browserUse.headless !== false ? [{ id: 'amadeus-browser', name: plugin('browser'), config: { stateDir: path.join(home, 'browser'), ...browserUse } }] : [{ id: 'amadeus-browser-use-playwright', name: officialPlugin(BROWSER_USE_PROVIDER), config: browserUse }]),
   );
 
   return [

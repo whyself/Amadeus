@@ -21,10 +21,9 @@ test('official per-Session browser provider replaces the generic MCP connection'
   const registry = inserts.find(row => row.id === 'amadeus-browser-use');
   assert.match(registry.name, /^file:\/\//);
   assert.ok(existsSync(fileURLToPath(registry.name)));
-  const provider = inserts.find(row => row.id === 'amadeus-browser-use-playwright');
-  assert.match(provider.name, /dsh-experimental-browser-use-playwright-mcp\/lib\/index\.js$/);
-  assert.ok(existsSync(fileURLToPath(provider.name)));
-  assert.deepEqual(provider.config, { mode: 'launch', headless: true });
+  const provider = inserts.find(row => row.id === 'amadeus-browser');
+  assert.match(provider.name, /packages\/browser\/dist\/index\.mjs$/);
+  assert.deepEqual(provider.config, { stateDir: path.join('/home/amadeus', 'browser'), mode: 'launch', headless: true });
   assert.equal(inserts.some(row => row.id === 'amadeus-mcp-playwright'), false);
   assert.equal(patch.some(row => row.id === 'amadeus-mcp-playwright'), false);
 });
@@ -32,7 +31,7 @@ test('official per-Session browser provider replaces the generic MCP connection'
 test('disable and new configuration precedence do not start another browser', () => {
   for (const config of [{ browserUse: { enabled: false } }, { playwrightMcp: { enabled: false } }]) {
     assert.equal(resolveBrowserUseConfig(config), null);
-    assert.equal(patchFor(config).find(row => row.insert).insert.some(row => row.id === 'amadeus-browser-use-playwright'), false);
+    assert.equal(patchFor(config).find(row => row.insert).insert.some(row => row.id === 'amadeus-browser'), false);
   }
   assert.deepEqual(resolveBrowserUseConfig({ playwrightMcp: { enabled: false }, browserUse: { enabled: true } }), { mode: 'launch', headless: true });
 });
@@ -68,7 +67,7 @@ test('the actual DSH loader imports official plugins from a home outside the pro
   try {
     await ctx.plugin(Loader);
     await ctx.plugin(PluginPackages, { resolution: await createRuntimeResolution({ installAnchor: INSTALL_ANCHOR }) });
-    const inserts = patchFor({}).find(row => row.insert).insert;
+    const inserts = patchFor({ browserUse: { mode: 'attach', endpoint: 'http://127.0.0.1:9222' } }).find(row => row.insert).insert;
     const registry = await ctx.loader.import(inserts.find(row => row.id === 'amadeus-browser-use').name);
     const provider = await ctx.loader.import(inserts.find(row => row.id === 'amadeus-browser-use-playwright').name);
     assert.equal(typeof registry.default, 'function');

@@ -15,6 +15,8 @@
     "pack:plugins": "node scripts/pack.mjs",
     "setup:browsers": "node scripts/setup-browsers.mjs",
     "test:browser-use-live": "node tests/browser-use-live.mjs",
+    "test:shared-browser-live": "node tests/shared-browser-live.mjs",
+    "test:shared-browser-ui": "node tests/shared-browser-ui.mjs",
     "test:files-browser": "node tests/files-browser.mjs",
     "test:annotations-browser": "node tests/annotation-browser.mjs",
     "test:browser-compat": "node tests/browser-compat-browser.mjs"

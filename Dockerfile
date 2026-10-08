@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci && npm run build \
     && node scripts/patch-code-server.mjs /opt/code-server \
     && node scripts/patch-latex-workshop.mjs /opt/amadeus-extensions/james-yu.latex-workshop-${LATEX_WORKSHOP_VERSION} \
-    && node node_modules/playwright/cli.js install-deps chromium \
+    && npm run setup:browsers -- --deps-only \
     && rm -rf /var/lib/apt/lists/* \
     && cp -a packages/editor/extension /opt/amadeus-extensions/amadeus.amadeus-bridge-1.0.0 \
     && chmod -R a+rX /opt/amadeus-extensions \
