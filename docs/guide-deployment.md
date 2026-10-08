@@ -123,11 +123,11 @@ git clone --branch v1.2.0-rc.1 --depth 1 https://github.com/whyself/Amadeus.git
 cd Amadeus
 npm ci
 npm run build
-sudo node node_modules/playwright/cli.js install-deps chromium
-node node_modules/playwright/cli.js install chromium
+sudo npm run setup:browsers -- --deps-only
+npm run setup:browsers
 ~~~
 
-最后两步分别安装浏览器所需系统库和当前用户的 Chromium。若明确不需要内置浏览器自动化，可省略这两步，并在 B4 配置中增加 `playwrightMcp: { enabled: false }`。
+最后两步分别安装 DSH 官方 browser use 插件所需系统库和当前用户的 Chromium，安装版本与插件运行时一致。若明确不需要内置浏览器自动化，可省略这两步，并在 B4 配置中增加 `browserUse: { enabled: false }`。
 
 ### B3. 安装固定版本的 code-server 与扩展，应用补丁
 
@@ -180,8 +180,10 @@ maxPreviewBytes: 268435456
 editor:
   upstream: http://127.0.0.1:8080
   bridgeDir: /home/你的用户/.local/share/amadeus/bridge
-playwrightMcp:
+browserUse:
   enabled: true
+  mode: launch
+  headless: true
 ~~~
 
 YAML 不会自动展开 `$HOME` 或 `~`。`editor.bridgeDir` 与启动 code-server 时的 `AMADEUS_EDITOR_BRIDGE_DIR` 必须指向**同一个绝对目录**，并且由同一个用户读写；否则编辑器画面可能能打开，但 Bridge 一直显示未连接。

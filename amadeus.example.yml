@@ -16,17 +16,17 @@ maxPreviewBytes: 268435456
 #   upstream: http://127.0.0.1:8080
 #   bridgeDir: /data/editor/bridge
 
-# Playwright MCP browser automation support (enabled by default).
-# Automatically checks and downloads chromium on startup if not present.
-# To disable, set `enabled: false`.
-# playwrightMcp:
+# Official DSH browser use (experimental; enabled by default).
+# Each live Session launches its own Chromium; startup installs the pinned runtime.
+# browserUse:
 #   enabled: true
-#   browser: chromium # chromium (default), chrome, msedge, firefox, webkit
+#   mode: launch
 #   headless: true
-#   noSandbox: false # automatically enabled when running as root or in containers on Linux
-#   timeoutMs: 60000
-#   idleTimeoutMs: 600000 # 10 minutes idle timeout to automatically release browser memory
-#   allowUnrestrictedFileAccess: false
-#   # Custom executable/args override (optional):
-#   # command: playwright-mcp
-#   # args: ['--headless', '--browser', 'chromium']
+#   # executablePath: /usr/bin/chromium
+#   # toolCallTimeoutMs: 60000
+# Attach to an existing server-side Chromium (one active Session owns the connection):
+# browserUse:
+#   enabled: true
+#   mode: attach
+#   endpoint: http://127.0.0.1:9222
+# This does not connect the existing sidebar iframe to the AI browser.

@@ -11,5 +11,7 @@ maxPreviewBytes: 268435456
 editor:
   upstream: http://127.0.0.1:8080
   bridgeDir: /data/editor/bridge
-playwrightMcp:
+browserUse:
   enabled: true
+  mode: launch
+  headless: true

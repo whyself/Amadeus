@@ -1,73 +1,44 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-const require = createRequire(import.meta.url);
+import { BROWSER_USE_PROVIDER, resolveBrowserUseConfig } from './browser-use-config.mjs';
 
-function resolveChromiumExecutable(root) {
-  try {
-    const mcpEntry = path.join(root, 'node_modules/@playwright/mcp/index.js');
-    if (existsSync(mcpEntry)) {
-      const mcpRequire = createRequire(mcpEntry);
-      const core = mcpRequire('playwright-core');
-      if (core?.chromium?.executablePath) {
-        return core.chromium.executablePath();
-      }
-    }
-  } catch {}
-
-  try {
-    const core = require('playwright-core');
-    if (core?.chromium?.executablePath) {
-      return core.chromium.executablePath();
-    }
-  } catch {}
-
-  return null;
+// Resolve through the provider so npm hoisting cannot select the test runtime.
+export function resolveBrowserRuntime(root) {
+  const projectRequire = createRequire(path.join(root, 'package.json'));
+  const providerPath = projectRequire.resolve(`${BROWSER_USE_PROVIDER}/package.json`);
+  const providerRequire = createRequire(providerPath);
+  const mcpPath = providerRequire.resolve('@playwright/mcp/package.json');
+  const mcpRequire = createRequire(mcpPath);
+  const playwrightPath = mcpRequire.resolve('playwright/package.json');
+  const core = mcpRequire('playwright-core');
+  return {
+    cli: path.join(path.dirname(playwrightPath), 'cli.js'),
+    executable: core.chromium.executablePath(),
+    providerVersion: projectRequire(providerPath).version,
+    mcpVersion: providerRequire(mcpPath).version,
+  };
 }
 
-export async function ensurePlaywrightBrowsers({ root, home, config }) {
-  if (config?.playwrightMcp?.enabled === false) return;
-  if (home) {
-    const outputDir = path.join(home, 'playwright-output');
-    await mkdir(outputDir, { recursive: true, mode: 0o700 }).catch(() => {});
-  }
+export async function installBrowserRuntime(root, { dependenciesOnly = false, withDependencies = false } = {}) {
+  const runtime = resolveBrowserRuntime(root);
+  const args = dependenciesOnly ? ['install-deps', 'chromium'] : ['install', ...(withDependencies ? ['--with-deps'] : []), 'chromium'];
+  const child = spawn(process.execPath, [runtime.cli, ...args], { cwd: root, stdio: 'inherit', windowsHide: true });
+  await new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', code => code === 0 ? resolve() : reject(new Error(`Browser runtime installation exited with code ${code}`)));
+  });
+}
 
-  const customBrowser = config?.playwrightMcp?.browser;
-  if (config?.playwrightMcp?.command || (customBrowser && customBrowser !== 'chromium')) {
-    return;
-  }
-
-  const executable = resolveChromiumExecutable(root);
-  if (executable && existsSync(executable)) {
-    return;
-  }
-
-  console.log('[Amadeus] 检测到未安装 Playwright Chromium 内核，正在自动下载资源...');
-  try {
-    const mcpCli = path.join(root, 'node_modules/@playwright/mcp/cli.js');
-    const rootCli = path.join(root, 'node_modules/playwright/cli.js');
-    const [cli, args] = existsSync(mcpCli)
-      ? [mcpCli, ['install-browser', 'chromium']]
-      : [rootCli, ['install', 'chromium']];
-
-    const child = spawn(process.execPath, [cli, ...args], {
-      cwd: root,
-      stdio: 'inherit',
-      windowsHide: true,
-    });
-    await new Promise((resolve, reject) => {
-      child.on('error', reject);
-      child.on('close', code => {
-        if (code === 0) resolve();
-        else reject(new Error(`Playwright browser installation exited with code ${code}`));
-      });
-    });
-    console.log('[Amadeus] Playwright Chromium 内核资源准备就绪。');
-  } catch (error) {
-    console.warn(`[Amadeus] 自动下载 Playwright 浏览器资源失败（后续可通过 npm run setup:browsers 手动安装）: ${error.message}`);
-  }
+export async function ensurePlaywrightBrowsers({ root, config }) {
+  const browserUse = resolveBrowserUseConfig(config);
+  if (!browserUse || browserUse.mode === 'attach' || browserUse.executablePath) return;
+  const runtime = resolveBrowserRuntime(root);
+  if (existsSync(runtime.executable)) return;
+  console.log('[Amadeus] 正在准备 DSH 官方 browser use 插件所需的 Chromium...');
+  // Fail before startup: the official provider cannot create Sessions without its runtime.
+  await installBrowserRuntime(root);
 }
 

@@ -13,7 +13,8 @@
     "test:editor-live": "node tests/editor-code-server-browser.mjs",
     "start": "node scripts/start.mjs",
     "pack:plugins": "node scripts/pack.mjs",
-    "setup:browsers": "node node_modules/@playwright/mcp/cli.js install-browser --with-deps chromium",
+    "setup:browsers": "node scripts/setup-browsers.mjs",
+    "test:browser-use-live": "node tests/browser-use-live.mjs",
     "test:files-browser": "node tests/files-browser.mjs",
     "test:annotations-browser": "node tests/annotation-browser.mjs",
     "test:browser-compat": "node tests/browser-compat-browser.mjs"
@@ -24,6 +25,8 @@
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.5-alpha.1",
     "@deepseek-ai/dsh": "0.2.1-alpha.1",
+    "@deepseek-ai/dsh-browser-use": "0.2.1-alpha.1",
+    "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp": "0.2.1-alpha.1",
     "@deepseek-ai/dsh-host-webserver": "0.2.1-alpha.1",
     "@deepseek-ai/schemastery": "3.18.5-alpha.1",
     "js-yaml": "4.3.2",
@@ -31,7 +34,6 @@
     "yazl": "3.3.1"
   },
   "devDependencies": {
-    "@playwright/mcp": "0.0.82",
     "@playwright/test": "1.58.2",
     "esbuild": "0.25.12",
     "react": "18.3.1",
