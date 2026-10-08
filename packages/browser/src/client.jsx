@@ -64,14 +64,13 @@ export function BrowserTab({ sessionId, useTabInfo }) {
     } catch (error) { setError(error.message); } finally { setRetrying(false); }
   }
   return <section className="amadeus-browser" data-amadeus-browser>
-    <div className="amadeus-browser-toolbar"><input aria-label={tr('AI 浏览器地址', 'AI browser address')} readOnly value={page?.url || ''} placeholder={tr('等待 AI 打开网页', 'Waiting for AI to open a page')} /><span>{tr('只读', 'Read-only')}</span></div>
+    <div className="amadeus-browser-toolbar"><span className="amadeus-browser-page-label" title={page?.title || tr('AI 浏览器', 'AI Browser')}>{page?.title && page.title !== 'about:blank' ? page.title : tr('AI 浏览器', 'AI Browser')}</span><input aria-label={tr('AI 浏览器地址', 'AI browser address')} readOnly value={page?.url || ''} placeholder={tr('等待 AI 打开网页', 'Waiting for AI to open a page')} /></div>
     {error && <div role="alert" className="amadeus-browser-notice">{error}</div>}
     {state?.failed && <div role="alert" className="amadeus-browser-notice">{tr('浏览器已退出。', 'Browser exited.')} <button disabled={retrying} onClick={retry}>{retrying ? tr('连接中…', 'Connecting…') : tr('重新连接', 'Reconnect')}</button></div>}
     <div className="amadeus-browser-viewport">
       {!connected && !state?.failed && <div className="amadeus-browser-status" role="status">{tr('正在连接 AI 浏览器画面…', 'Connecting to AI browser…')}</div>}
       <canvas ref={canvas} width="1280" height="800" aria-label={tr('AI 浏览器只读画面', 'Read-only AI browser viewport')} />
     </div>
-    <div className="amadeus-browser-footer">{tr('AI 操作过程 · 只读观看', 'AI browser activity · read-only viewing')}</div>
   </section>;
 }
 
